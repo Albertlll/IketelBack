@@ -1,0 +1,39 @@
+name: Docker Build and Deploy
+
+on:
+  push:
+    branches:
+      - main 
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # Шаг 1: Checkout кода
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Шаг 2: Деплой на сервер
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            # Переходим в папку проекта (или создаем её)
+            mkdir -p /home/user/iketel
+            cd /home/user/iketel
+
+            # Останавливаем и удаляем старый контейнер
+            docker stop iketel-env || true
+            docker rm iketel-env || true
+
+            # Копируем новый код из репозитория
+            rm -rf ./*
+            git clone https://github.com/${{ github.repository }}.git .
+
+            # Собираем Docker-образ
+            docker build -t iketel-server .
+
+            # Запускаем новый контейнер
+            docker run -d --name iketel-env iketel-server
