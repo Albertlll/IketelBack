@@ -35,7 +35,7 @@ jobs:
             git clone https://${{ secrets.GH_TOKEN }}@github.com/${{ github.repository }}.git .
 
             # Собираем Docker-образ с использованием BuildKit
-            DOCKER_BUILDKIT=1 docker build -t iketel-server . || echo "Docker build failed"
+            docker build -t iketel-server . || echo "Docker build failed"
 
             # Запускаем новый контейнер
             docker run -d --name iketel-env iketel-server || echo "Docker run failed"
