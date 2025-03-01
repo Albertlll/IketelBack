@@ -21,8 +21,8 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             # Переходим в папку проекта (или создаем её)
-            mkdir -p /home/user/iketel
-            cd /home/user/iketel
+            mkdir -p /home/alan/iketel
+            cd /home/alan/iketel
 
             # Останавливаем и удаляем старый контейнер
             docker stop iketel-env || true
