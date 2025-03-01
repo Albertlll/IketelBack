@@ -30,12 +30,12 @@ jobs:
             docker stop iketel-env || true
             docker rm iketel-env || true
 
-            # Копируем новый код из репозитория
+            # Копируем новый код из репозитория с использованием токена
             rm -rf ./*
-            git clone https://github.com/${{ github.repository }}.git .
+            git clone https://${{ secrets.GH_TOKEN }}@github.com/${{ github.repository }}.git .
 
-            # Собираем Docker-образ
-            docker build -t iketel-server . || echo "Docker build failed"
+            # Собираем Docker-образ с использованием BuildKit
+            DOCKER_BUILDKIT=1 docker build -t iketel-server . || echo "Docker build failed"
 
             # Запускаем новый контейнер
             docker run -d --name iketel-env iketel-server || echo "Docker run failed"
