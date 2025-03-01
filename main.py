@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Union
 from pydantic import BaseModel
 
-# Создаем Socket.IO сервер с CORS
+# Создаем Socket.IO сервер с CORS  uvicorn main:asgi_app --host 0.0.0.0 --port 8000 --reload
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins="*")
 
 # FastAPI приложение
