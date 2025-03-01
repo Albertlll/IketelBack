@@ -3,10 +3,12 @@ name: Docker Build and Deploy
 on:
   push:
     branches:
-      - main 
+      - main
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       # Шаг 1: Checkout кода
       - name: Checkout code
@@ -33,7 +35,13 @@ jobs:
             git clone https://github.com/${{ github.repository }}.git .
 
             # Собираем Docker-образ
-            docker build -t iketel-server .
+            docker build -t iketel-server . || echo "Docker build failed"
 
             # Запускаем новый контейнер
-            docker run -d --name iketel-env iketel-server
+            docker run -d --name iketel-env iketel-server || echo "Docker run failed"
+
+            # Проверяем, что контейнер запущен
+            docker ps -a
+
+            # Показываем логи контейнера (если он не запустился)
+            docker logs iketel-env || echo "No logs available"
