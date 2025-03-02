@@ -24,7 +24,10 @@ jobs:
           script: |
             # Переходим в папку проекта (или создаем её)
             mkdir -p /home/alan/iketel
-            cd /home/alan/iketel
+            
+            cd /home/alan/
+            cp -r ssl iketel
+            cd iketel
 
             # Останавливаем и удаляем старый контейнер
             docker stop iketel-env || true
