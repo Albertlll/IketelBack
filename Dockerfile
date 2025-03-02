@@ -11,6 +11,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Копируем весь код проекта в контейнер
+RUN mkdir -p /ssl
 COPY . .
 COPY ssl/ /etc/ssl/certs/
 # Указываем порт, который будет использовать приложение
