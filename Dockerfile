@@ -17,4 +17,4 @@ COPY . .
 EXPOSE 8000
 
 # Команда для запуска приложения с SSL
-CMD uvicorn app.main:app --host 0.0.0.0 --port 8000 --ssl-keyfile /ssl/certificate.key --ssl-certfile /ssl/certificate.crt --ssl-ca-certs /ssl/certificate_ca.crt
+CMD  uvicorn main:asgi_app --host 0.0.0.0 --port 8000 --ssl-keyfile ./ssl/certificate.key --ssl-certfile ./ssl/certificate.crt --ssl-ca-certs ./ssl/certificate_ca.crt
