@@ -12,9 +12,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Копируем весь код проекта в контейнер
 COPY . .
+COPY /etc/ssl/certs /etc/ssl/certs/
 
 # Указываем порт, который будет использовать приложение
 EXPOSE 8000
 
 # Команда для запуска приложения
-CMD uvicorn app.main:app --host 0.0.0.0 --port 8000 --ssl-keyfile /etc/ssl/certificate.key --ssl-certfile /etc/ssl/certificate.crt --ssl-ca-certs /etc/ssl/certificate_ca.crt
+CMD uvicorn app.main:app --host 0.0.0.0 --port 8000 --ssl-keyfile /etc/ssl/certs/certificate.key --ssl-certfile /etc/ssl/certs/certificate.crt --ssl-ca-certs /etc/ssl/certs/certificate_ca.crt
