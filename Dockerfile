@@ -13,12 +13,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копируем весь код проекта в контейнер
 COPY . .
 
-# Создаем директорию для сертификатов
-RUN mkdir -p /etc/ssl/certs/
-
-# Копируем сертификаты в контейнер в /etc/ssl/certs/
-COPY ssl/ /etc/ssl/certs/
-
 # Указываем порт, который будет использовать приложение
 EXPOSE 8000
 
