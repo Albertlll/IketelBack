@@ -38,7 +38,7 @@ jobs:
             docker build -t iketel-server . || echo "Docker build failed"
 
             # Запускаем новый контейнер
-            docker run -d --name iketel-env iketel-server || echo "Docker run failed"
+            docker run -d --name iketel-env -p 8000:8000 iketel-server || echo "Docker run failed"
 
             # Проверяем, что контейнер запущен
             docker ps -a
