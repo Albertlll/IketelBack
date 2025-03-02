@@ -24,11 +24,8 @@ jobs:
           script: |
             # Переходим в папку проекта (или создаем её)
             mkdir -p /home/alan/iketel
-            
-            cd /home/alan/
-            cp -r ssl iketel
             cd iketel
-
+            
             # Останавливаем и удаляем старый контейнер
             docker stop iketel-env || true
             docker rm iketel-env || true
@@ -38,14 +35,18 @@ jobs:
             rm -rf ./* ./.??*
             git clone https://${{ secrets.GH_TOKEN }}@github.com/${{ github.repository }}.git .
 
+            cd /home/alan/
+            cp -r ssl iketel
+            cd iketel
+
             # Собираем Docker-образ с использованием BuildKit
-            docker build -t iketel-server . || echo "Docker build failed"
+            docker build -t iketel-server . 
 
             # Запускаем новый контейнер
-            docker run -d --name iketel-env -p 8000:8000 iketel-server || echo "Docker run failed"
+            docker run -d --name iketel-env -p 8000:8000 iketel-server 
 
             # Проверяем, что контейнер запущен
-            docker ps -a
+            docker ps
 
             # Показываем логи контейнера (если он не запустился)
-            docker logs iketel-env || echo "No logs available"
+            docker logs iketel-env
