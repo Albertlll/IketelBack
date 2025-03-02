@@ -31,7 +31,8 @@ jobs:
             docker rm iketel-env || true
 
             # Копируем новый код из репозитория с использованием токена
-            rm -rf ./*
+
+            rm -rf ./* ./.??*
             git clone https://${{ secrets.GH_TOKEN }}@github.com/${{ github.repository }}.git .
 
             # Собираем Docker-образ с использованием BuildKit
