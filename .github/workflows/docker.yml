@@ -41,7 +41,7 @@ jobs:
       # Шаг 3: Публикуем Docker образ в Yandex Container Registry
       - name: Push Docker image to Yandex Container Registry
         run: |
-          docker push cr.yandex/crph8la4elkq8clar20b/iketel-frontend:latest
+          docker push cr.yandex/crph8la4elkq8clar20b/iketel-backend:latest
 
       # Шаг 5: SSH в сервер и запускаем контейнеры
       - name: Create SSH key file
