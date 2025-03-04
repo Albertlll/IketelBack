@@ -13,6 +13,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копируем весь код проекта в контейнер
 COPY . .
 
+RUN --mount=type=secret,id=ssl_key cat /run/secrets/ssl_key > /app/ssl/server-key.key
+RUN --mount=type=secret,id=ssl_cert cat /run/secrets/ssl_cert > /app/ssl/server-cert.crt
+RUN --mount=type=secret,id=ssl_ca cat /run/secrets/ssl_ca > /app/ssl/server-ca.crt
+
 # Указываем порт, который будет использовать приложение
 EXPOSE 8000
 
