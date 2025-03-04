@@ -22,4 +22,7 @@ RUN --mount=type=secret,id=ssl_ca cat /run/secrets/ssl_ca > /app/ssl/server-ca.c
 EXPOSE 8000
 
 # Команда для запуска приложения с SSL
-CMD  uvicorn main:asgi_app --host 0.0.0.0 --port 8000 --ssl-keyfile ./ssl/certificate.key --ssl-certfile ./ssl/certificate.crt --ssl-ca-certs ./ssl/certificate_ca.crt
+CMD uvicorn main:asgi_app --host 0.0.0.0 --port 8000 \
+    --ssl-keyfile ./ssl/server-key.key \
+    --ssl-certfile ./ssl/server-cert.crt \
+    --ssl-ca-certs ./ssl/server-ca.crt
