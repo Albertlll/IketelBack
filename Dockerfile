@@ -3,7 +3,7 @@ FROM python:3.9-slim
 
 # Устанавливаем рабочую директорию внутри контейнера
 WORKDIR /app
-RUN mkdir -p /app/ssl
+RUN mkdir -p /ssl
 
 # Копируем зависимости
 COPY requirements.txt .
