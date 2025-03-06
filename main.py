@@ -1,10 +1,22 @@
+import ssl
 import socketio
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Union
 from pydantic import BaseModel
+import uvicorn
 
-# Создаем Socket.IO сервер с CORS  uvicorn main:asgi_app --host 0.0.0.0 --port 8000 --reload
+# Пути к SSL-файлам
+SSL_CERT_PATH = "ssl/server-cert.crt"
+SSL_KEY_PATH = "ssl/server-key.key"
+SSL_CA_PATH = "ssl/server-ca.crt"
+
+# Создаем SSL контекст
+ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+ssl_context.load_cert_chain(SSL_CERT_PATH, keyfile=SSL_KEY_PATH, password=None)
+ssl_context.load_verify_locations(cafile=SSL_CA_PATH)
+
+# Создаем Socket.IO сервер с CORS
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins="*")
 
 # FastAPI приложение
@@ -31,7 +43,7 @@ class GamePreview(BaseModel):
 class VocabularyGame(BaseModel):
     id: str
     type: str = "vocabulary"
-    content: dict  # Содержимое словарной игры (карточки слов)
+    content: dict  
 
 class WorldPreview(BaseModel):
     id: int
@@ -41,29 +53,15 @@ class WorldPreview(BaseModel):
 class WorldDetail(WorldPreview):
     minigames: List[GamePreview]
 
-# Модель карточки слов
 class Card(BaseModel):
-    term: str        # Татарское слово
-    definition: str  # Русский перевод
+    term: str
+    definition: str
 
-# Демонстрационные данные (слова и переводы)
+# Демонстрационные данные
 example_vocabulary_content = {
     "cards": [
         {"term": "Алма", "definition": "Яблоко"},
         {"term": "Банан", "definition": "Банан"},
-        {"term": "Чия", "definition": "Вишня"},
-        {"term": "Кызыл", "definition": "Красный"},
-        {"term": "Күк", "definition": "Синий"},
-        {"term": "Яшел", "definition": "Зеленый"},
-        {"term": "Кара", "definition": "Черный"},
-        {"term": "Ак", "definition": "Белый"},
-        {"term": "Китап", "definition": "Книга"},
-        {"term": "Су", "definition": "Вода"},
-        {"term": "Ит", "definition": "Собака"},
-        {"term": "Мошк", "definition": "Кошка"},
-        {"term": "Табигать", "definition": "Природа"},
-        {"term": "Дус", "definition": "Друг"},
-        {"term": "Татар", "definition": "Татарин"},
     ]
 }
 
@@ -78,15 +76,12 @@ demo_worlds = [
         url="https://c4.wallpaperflare.com/wallpaper/663/620/993/fantasy-ocean-hd-wallpaper-preview.jpg",
         minigames=[
             GamePreview(id="1", title="Memory Game", imageUrl="https://picsum.photos/1920/1080", type="game"),
-            GamePreview(id="2", title="Puzzle Challenge", imageUrl="https://picsum.photos/1920/1080", type="game"),
-            GamePreview(id="3", title="История", imageUrl="https://picsum.photos/1920/1080", type="story"),
-            GamePreview(id="4", title="Задания", imageUrl="https://picsum.photos/1920/1080", type="tasks"),
             GamePreview(id="5", title="Словарь", imageUrl="https://picsum.photos/1920/1080", type="vocabulary"),
         ]
     )
 ]
 
-cards_db = example_vocabulary_content["cards"]  # Локальная "база данных" карточек
+cards_db = example_vocabulary_content["cards"]
 
 # Эндпоинты API
 @app.get("/worlds", response_model=List[WorldPreview])
@@ -107,19 +102,16 @@ async def get_game(game_id: str):
             return game
     raise HTTPException(status_code=404, detail="Игра не найдена")
 
-# Получить все карточки (слова + переводы)
 @app.get("/cards", response_model=List[Card])
 async def get_cards():
     return cards_db
 
-# Добавить новую карточку (слово + перевод)
 @app.post("/cards", response_model=Card)
 async def add_card(card: Card):
     cards_db.append(card.dict())
-    await sio.emit("new_card", card.dict())  # Отправляем обновление через WebSocket
+    await sio.emit("new_card", card.dict())  
     return card
 
-# WebSocket события
 @sio.event
 async def connect(sid, environ):
     print(f"Клиент {sid} подключился")
@@ -132,7 +124,6 @@ async def disconnect(sid):
 # Объединяем FastAPI и Socket.IO
 asgi_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
-# Запуск сервера
+# Запуск сервера с SSL
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(asgi_app, host="0.0.0.0", port=8000)
+    uvicorn.run(asgi_app, host="0.0.0.0", port=8000, ssl_context=ssl_context)
