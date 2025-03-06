@@ -118,8 +118,8 @@ asgi_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
 # Запуск сервера с SSL
 if __name__ == "__main__":
-    uvicorn.run(asgi_app, host="0.0.0.0", port=8000)
-    #    ssl_keyfile="ssl/certificate.key", 
-    #     ssl_certfile="ssl/certificate.crt", 
-    #     ssl_ca_certs="ssl/certificate_ca.crt" 
+    uvicorn.run(asgi_app, host="0.0.0.0", port=8000
+        ssl_keyfile="ssl/server-key.key", 
+         ssl_certfile="ssl/server-cert.crt", 
+         ssl_ca_certs="ssl/server-ca.crt")
         
