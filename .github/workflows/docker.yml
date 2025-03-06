@@ -23,14 +23,15 @@ jobs:
           registry: cr.yandex
           username: oauth
           password: ${{ secrets.YANDEX_CLOUD_KEY }}
-      
+
+      # Шаг 2: Создаем секреты для SSL сертификатов
       - name: Create secret files
         run: |
           echo "${{ secrets.SSL_CERT_KEY }}" > ssl_key.pem
           echo "${{ secrets.SSL_CERT }}" > ssl_cert.pem
           echo "${{ secrets.SSL_CERT_CA }}" > ssl_ca.pem
 
-      # Шаг 2: Строим Docker образ
+      # Шаг 3: Строим Docker образ
       - name: Build Docker image
         run: |
           docker build --secret id=ssl_key,src=ssl_key.pem \
@@ -38,32 +39,21 @@ jobs:
                        --secret id=ssl_ca,src=ssl_ca.pem \
                        -t cr.yandex/crph8la4elkq8clar20b/iketel-backend:latest .
 
-      # Шаг 3: Публикуем Docker образ в Yandex Container Registry
+      # Шаг 4: Публикуем Docker образ в Yandex Container Registry
       - name: Push Docker image to Yandex Container Registry
         run: |
           docker push cr.yandex/crph8la4elkq8clar20b/iketel-backend:latest
 
-      # Шаг 5: SSH в сервер и запускаем контейнеры
+      # Шаг 5: SSH в сервер и разворачиваем контейнеры
       - name: Create SSH key file
         run: |
           echo "${{ secrets.SERVER_SSH_KEY }}" > server_key.pem
           chmod 600 server_key.pem
-      
+
       - name: SSH into server and deploy
         run: |
-          ssh -o StrictHostKeyChecking=no -i server_key.pem alan@${{ secrets.SERVER_IP }} &
-            cd /home/alan &
-            docker-compose pull &
-            docker-compose down  &
-            docker-compose up -d &
-            docker system prune -f 
-          
-
-
-
-
-
-
-
-
-
+          ssh -o StrictHostKeyChecking=no -i server_key.pem alan@${{ secrets.SERVER_IP }} "cd /home/alan && \
+            docker-compose pull && \
+            docker-compose down && \
+            docker-compose up -d && \
+            docker system prune -f"
