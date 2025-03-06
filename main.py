@@ -6,15 +6,7 @@ from typing import List, Union
 from pydantic import BaseModel
 import uvicorn
 
-# Пути к SSL-файлам
-SSL_CERT_PATH = "ssl/server-cert.crt"
-SSL_KEY_PATH = "ssl/server-key.key"
-SSL_CA_PATH = "ssl/server-ca.crt"
 
-# Создаем SSL контекст
-ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-ssl_context.load_cert_chain(SSL_CERT_PATH, keyfile=SSL_KEY_PATH, password=None)
-ssl_context.load_verify_locations(cafile=SSL_CA_PATH)
 
 # Создаем Socket.IO сервер с CORS
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins="*")
@@ -126,4 +118,8 @@ asgi_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
 # Запуск сервера с SSL
 if __name__ == "__main__":
-    uvicorn.run(asgi_app, host="0.0.0.0", port=8000, ssl_context=ssl_context)
+    uvicorn.run(asgi_app, host="0.0.0.0", port=8000,
+       ssl_keyfile="ssl/certificate.key", 
+        ssl_certfile="ssl/certificate.crt", 
+        ssl_ca_certs="ssl/certificate_ca.crt" 
+        )
