@@ -15,13 +15,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копируем весь код проекта в контейнер
 COPY . .
 
+
 RUN --mount=type=secret,id=ssl_key cat /run/secrets/ssl_key > /app/ssl/server-key.key
 RUN --mount=type=secret,id=ssl_cert cat /run/secrets/ssl_cert > /app/ssl/server-cert.crt
 RUN --mount=type=secret,id=ssl_ca cat /run/secrets/ssl_ca > /app/ssl/server-ca.crt
+
 
 # Указываем порт, который будет использовать приложение
 EXPOSE 8000
 
 # Команда для запуска приложения с SSL
-CMD  uvicorn main:asgi_app --host 0.0.0.0 --port 8000 
-# --ssl-keyfile ./ssl/certificate.key --ssl-certfile ./ssl/certificate.crt --ssl-ca-certs ./ssl/certificate_ca.crt
+CMD  uvicorn main:asgi_app --host 0.0.0.0 --port 8000 --ssl-keyfile ./ssl/certificate.key --ssl-certfile ./ssl/certificate.crt --ssl-ca-certs ./ssl/certificate_ca.crt
+
