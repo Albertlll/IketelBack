@@ -1,9 +1,14 @@
 # Используем официальный образ Python 3.9
 FROM python:3.9-slim
 
+# Включаем поддержку BuildKit для использования секретов
+# Убедитесь, что BuildKit включен, иначе секреты не будут работать
+# ENV DOCKER_BUILDKIT=1
+
 # Устанавливаем рабочую директорию внутри контейнера
 WORKDIR /app
 
+# Создаем папку для сертификатов
 RUN mkdir -p /app/ssl
 
 # Копируем зависимости
@@ -15,6 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копируем весь код проекта в контейнер
 COPY . .
 
+# Используем секреты для добавления SSL-сертификатов
 RUN --mount=type=secret,id=ssl_key cat /run/secrets/ssl_key > /app/ssl/server-key.key
 RUN --mount=type=secret,id=ssl_cert cat /run/secrets/ssl_cert > /app/ssl/server-cert.crt
 RUN --mount=type=secret,id=ssl_ca cat /run/secrets/ssl_ca > /app/ssl/server-ca.crt
@@ -27,4 +33,3 @@ CMD uvicorn main:asgi_app --host 0.0.0.0 --port 8000 \
     --ssl-keyfile /app/ssl/server-key.key \
     --ssl-certfile /app/ssl/server-cert.crt \
     --ssl-ca-certs /app/ssl/server-ca.crt
-
