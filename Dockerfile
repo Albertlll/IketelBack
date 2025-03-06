@@ -3,7 +3,7 @@ FROM python:3.9-slim
 
 # Включаем поддержку BuildKit для использования секретов
 # Убедитесь, что BuildKit включен, иначе секреты не будут работать
-# ENV DOCKER_BUILDKIT=1
+ENV DOCKER_BUILDKIT=1
 
 # Устанавливаем рабочую директорию внутри контейнера
 WORKDIR /app
@@ -24,6 +24,9 @@ COPY . .
 RUN --mount=type=secret,id=ssl_key cat /run/secrets/ssl_key > /app/ssl/server-key.key
 RUN --mount=type=secret,id=ssl_cert cat /run/secrets/ssl_cert > /app/ssl/server-cert.crt
 RUN --mount=type=secret,id=ssl_ca cat /run/secrets/ssl_ca > /app/ssl/server-ca.crt
+
+# Проверяем, что сертификаты были переданы
+RUN ls -la /app/ssl
 
 # Указываем порт, который будет использовать приложение
 EXPOSE 8000
