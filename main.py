@@ -69,8 +69,8 @@ example_select_variant_content = {
 }
 
 demo_games = [
-    VocabularyGame(vocabulary=example_vocabulary_content["vocabulary"]),
-    SelectVariantGame(**example_select_variant_content)
+    {"minigameId": "5", **VocabularyGame(vocabulary=example_vocabulary_content["vocabulary"]).dict()},
+    {"minigameId": "6", **SelectVariantGame(**example_select_variant_content).dict()}
 ]
 
 demo_worlds = [
@@ -105,7 +105,7 @@ async def get_world(world_id: int):
 @app.get("/games/{game_id}", response_model=Union[VocabularyGame, SelectVariantGame])
 async def get_game(game_id: str):
     for game in demo_games:
-        if hasattr(game, "minigameId") and game.minigameId == game_id:
+        if game.get("minigameId") == game_id:
             return game
     raise HTTPException(status_code=404, detail="Игра не найдена")
 
