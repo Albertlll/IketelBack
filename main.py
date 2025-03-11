@@ -6,8 +6,6 @@ from typing import List, Union
 from pydantic import BaseModel
 import uvicorn
 
-
-
 # Создаем Socket.IO сервер с CORS
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins="*")
 
@@ -26,16 +24,20 @@ app.add_middleware(
 )
 
 # Определяем модели данных
-class GamePreview(BaseModel):
-    id: str
-    title: str
-    imageUrl: str
-    type: str
-
 class VocabularyGame(BaseModel):
-    id: str
     type: str = "vocabulary"
-    content: dict  
+    vocabulary: List[dict]  # Список словарных слов и их переводов
+
+class SelectVariantGame(BaseModel):
+    type: str = "select-variant"
+    question: str
+    variants: List[dict]  # Список вариантов ответа
+
+class MinigamePreview(BaseModel):
+    minigameId: str
+    title: str
+    image: str
+    type: str
 
 class WorldPreview(BaseModel):
     id: int
@@ -43,7 +45,7 @@ class WorldPreview(BaseModel):
     url: str
 
 class WorldDetail(WorldPreview):
-    minigames: List[GamePreview]
+    minigames: List[MinigamePreview]
 
 class Card(BaseModel):
     term: str
@@ -51,14 +53,24 @@ class Card(BaseModel):
 
 # Демонстрационные данные
 example_vocabulary_content = {
-    "cards": [
-        {"term": "Алма", "definition": "Яблоко"},
-        {"term": "Банан", "definition": "Банан"},
+    "vocabulary": [
+        {"word": "Алма", "translation": "Яблоко"},
+        {"word": "Банан", "translation": "Банан"},
+    ]
+}
+
+example_select_variant_content = {
+    "question": "Выберите правильный перевод слова 'Яблоко'",
+    "variants": [
+        {"title": "Алма"},
+        {"title": "Банан"},
+        {"title": "Груша"},
     ]
 }
 
 demo_games = [
-    VocabularyGame(id="5", content=example_vocabulary_content)
+    VocabularyGame(vocabulary=example_vocabulary_content["vocabulary"]),
+    SelectVariantGame(**example_select_variant_content)
 ]
 
 demo_worlds = [
@@ -67,13 +79,16 @@ demo_worlds = [
         title="Морская экспедиция",
         url="https://c4.wallpaperflare.com/wallpaper/663/620/993/fantasy-ocean-hd-wallpaper-preview.jpg",
         minigames=[
-            GamePreview(id="1", title="Memory Game", imageUrl="https://picsum.photos/1920/1080", type="game"),
-            GamePreview(id="5", title="Словарь", imageUrl="https://picsum.photos/1920/1080", type="vocabulary"),
+            MinigamePreview(minigameId="1", title="Memory Game", image="https://picsum.photos/1920/1080", type="game"),
+            MinigamePreview(minigameId="5", title="Словарь", image="https://picsum.photos/1920/1080", type="vocabulary"),
         ]
     )
 ]
 
-cards_db = example_vocabulary_content["cards"]
+cards_db = [
+    {"term": "Алма", "definition": "Яблоко"},
+    {"term": "Банан", "definition": "Банан"},
+]
 
 # Эндпоинты API
 @app.get("/worlds", response_model=List[WorldPreview])
@@ -87,10 +102,10 @@ async def get_world(world_id: int):
             return world
     raise HTTPException(status_code=404, detail="Мир не найден")
 
-@app.get("/games/{game_id}", response_model=Union[VocabularyGame, GamePreview])
+@app.get("/games/{game_id}", response_model=Union[VocabularyGame, SelectVariantGame])
 async def get_game(game_id: str):
     for game in demo_games:
-        if game.id == game_id:
+        if hasattr(game, "minigameId") and game.minigameId == game_id:
             return game
     raise HTTPException(status_code=404, detail="Игра не найдена")
 
@@ -104,6 +119,7 @@ async def add_card(card: Card):
     await sio.emit("new_card", card.dict())  
     return card
 
+# Socket.IO события
 @sio.event
 async def connect(sid, environ):
     print(f"Клиент {sid} подключился")
@@ -119,4 +135,3 @@ asgi_app = socketio.ASGIApp(sio, other_asgi_app=app)
 # Запуск сервера с SSL  ssl_keyfile="ssl/server-key.key",  ssl_certfile="ssl/server-cert.crt"
 if __name__ == "__main__":
     uvicorn.run(asgi_app, host="0.0.0.0", port=8000)
-    
