@@ -18,3 +18,4 @@ simple-websocket==1.1.0
 wsproto==1.2.0
 python-multipart==0.0.20  # для обработки файлов и multipart-запросов
 python-jose==3.4.0
+passlib==1.7.4  # Добавьте эту строку
