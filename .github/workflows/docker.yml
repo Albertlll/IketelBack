@@ -56,8 +56,4 @@ jobs:
             docker-compose pull && \
             docker-compose down && \
             docker-compose up -d && \
-            docker system prune -f && \
-            echo 'Waiting for backend container to become ready...' && \
-            sleep 10 && \
-            docker exec iketel-backend alembic upgrade head && \
-            echo 'Database migrations completed successfully!'"
+            docker system prune -f && \"
