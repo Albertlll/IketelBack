@@ -33,6 +33,7 @@ class World(Base):
     id = Column(Integer, primary_key=True)
     title = Column(String(255), nullable=False)
     description = Column(Text)
+    image = Column(String(255))
     author_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'))
     is_public = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
