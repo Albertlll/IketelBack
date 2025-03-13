@@ -56,5 +56,4 @@ jobs:
             docker-compose pull && \
             docker-compose down && \
             docker-compose up -d && \
-            docker system prune -f && \
-            echo 'Waiting for backend container to become ready...' && \
+            docker system prune -f"
