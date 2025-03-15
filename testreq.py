@@ -2,7 +2,7 @@ import requests
 import json
 
 # URL базовый
-base_url = "https://iketel.ru/api"  # Измените на ваш адрес сервера
+base_url = "https://iketel.ru/api/api"  # Измените на ваш адрес сервера
 
 # 1. Сначала авторизуемся
 login_url = f"{base_url}/auth/login"

@@ -23,10 +23,10 @@ async def root():
 
 
 # Подключаем эндпоинты
-app.include_router(worlds.router, prefix="/api/worlds", tags=["worlds"])
-app.include_router(game.router, prefix="/api/game", tags=["game"])
-app.include_router(cards.router, prefix="/api/cards", tags=["cards"])
-app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(worlds.router, prefix="/worlds", tags=["worlds"])
+app.include_router(game.router, prefix="/game", tags=["game"])
+app.include_router(cards.router, prefix="/cards", tags=["cards"])
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
