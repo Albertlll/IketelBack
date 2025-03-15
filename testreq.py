@@ -2,7 +2,7 @@ import requests
 import json
 
 # URL базовый
-base_url = "http://localhost:8000"  # Измените на ваш адрес сервера
+base_url = "https://iketel.ru/api"  # Измените на ваш адрес сервера
 
 # 1. Сначала авторизуемся
 login_url = f"{base_url}/auth/login"
@@ -30,7 +30,7 @@ headers = {
     "Authorization": f"Bearer {token}"
 }
 
-# Подготовка данных и файла
+# Подготовка данных и файла8nn5aa7d5vgd1
 data = {
     "title": "Тестовый мир",
     "description": "Это тестовый мир, созданный через API",
@@ -38,7 +38,7 @@ data = {
 }
 
 # Замените путь на реальный путь к изображению
-image_path = "8nn5aa7d5vgd1.jpeg"  # ← ЗАМЕНИТЕ ЭТО!
+image_path = "photo_2024-11-04_02-05-08.jpeg"  # ← ЗАМЕНИТЕ ЭТО!
 
 try:
     with open(image_path, "rb") as img_file:
