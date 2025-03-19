@@ -12,13 +12,13 @@ app = FastAPI(
 
 # Укажите широкий спектр разрешенных доменов для разработки
 origins = [
-    "https://iketel.ru"
+    "https://iketel.ru",
+    "http://iketel.ru",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  # Указываем конкретные домены
-    allow_origin_regex=r"https?://192\.168\.(\d+)\.(\d+)(:\d+)?",  # Поддержка локальной сети
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

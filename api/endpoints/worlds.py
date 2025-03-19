@@ -27,7 +27,7 @@ demo_worlds = [
 @router.get("/", response_model=List[WorldPreview])
 async def get_all_worlds(db: Session = Depends(get_db)):
     # Получаем все публичные миры из базы данных
-    public_worlds = db.query(World).filter(World.is_public == True).all()
+    public_worlds =  db.query(World).filter(World.is_public == True).all()
     
     # Преобразуем в формат WorldPreview
     return [
