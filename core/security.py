@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Any, Optional
+import logging
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer
@@ -8,6 +9,9 @@ from pydantic import BaseModel
 from core.config import settings
 from db.session import get_db
 from db.models import User
+
+# Настройка логирования
+logger = logging.getLogger(__name__)
 
 # Добавляем модель TokenData
 class TokenData(BaseModel):
@@ -22,10 +26,23 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except Exception as e:
+        logger.error(f"Ошибка при проверке пароля: {e}")
+        # Важно - возвращаем False при ошибке, а не пропускаем
+        return False
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    try:
+        return pwd_context.hash(password)
+    except Exception as e:
+        logger.error(f"Ошибка при хешировании пароля: {e}")
+        # Здесь мы генерируем исключение, чтобы не создавать пользователя с пустым паролем
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Ошибка при обработке пароля"
+        )
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
