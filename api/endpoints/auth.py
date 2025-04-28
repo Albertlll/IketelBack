@@ -45,7 +45,7 @@ async def register(user_data: UserCreate, request: Request, db: Session = Depend
             data={"sub": db_user.email}, expires_delta=access_token_expires
         )
         logger.info(f"Пользователь успешно зарегистрирован: {user_data.email}")
-        return {"access_token": access_token, "token_type": "bearer"}
+        return {"access_token": access_token, "token_type": "bearer", "email" : user.email, "username": user.username}
     except Exception as e:
         logger.error(f"Ошибка при регистрации пользователя: {e}")
         db.rollback()
@@ -85,4 +85,4 @@ async def login(user_data: UserLogin, request: Request, db: Session = Depends(ge
         data={"sub": user.email}, expires_delta=access_token_expires
     )
     logger.info(f"Успешный вход пользователя: {user_data.email} с IP: {client_ip}")
-    return {"access_token": access_token, "token_type": "bearer"} 
+    return {"access_token": access_token, "token_type": "bearer", "email" : user.email, "username": user.username} 
