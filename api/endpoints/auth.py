@@ -3,7 +3,8 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from ..models.auth import UserCreate, UserLogin, Token
-from core.security import create_access_token, verify_password, get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES
+from core.security import create_access_token, verify_password, get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES, \
+    get_current_user
 from db.session import get_db
 from db.models import User
 
@@ -32,7 +33,6 @@ async def register(user_data: UserCreate, request: Request, db: Session = Depend
             email=user_data.email,
             username=user_data.username,
             password_hash=hashed_password,
-            role='student'  # По умолчанию роль student
         )
         
         db.add(db_user)
@@ -45,7 +45,7 @@ async def register(user_data: UserCreate, request: Request, db: Session = Depend
             data={"sub": db_user.email}, expires_delta=access_token_expires
         )
         logger.info(f"Пользователь успешно зарегистрирован: {user_data.email}")
-        return {"access_token": access_token, "token_type": "bearer", "email" : user.email, "username": user.username}
+        return {"access_token": access_token, "token_type": "bearer", "email" : user_data.email, "username": user_data.username}
     except Exception as e:
         logger.error(f"Ошибка при регистрации пользователя: {e}")
         db.rollback()
@@ -85,4 +85,12 @@ async def login(user_data: UserLogin, request: Request, db: Session = Depends(ge
         data={"sub": user.email}, expires_delta=access_token_expires
     )
     logger.info(f"Успешный вход пользователя: {user_data.email} с IP: {client_ip}")
-    return {"access_token": access_token, "token_type": "bearer", "email" : user.email, "username": user.username} 
+    return {"access_token": access_token, "token_type": "bearer", "email" : user.email, "username": user.username}
+
+
+
+@router.get("/validate")
+async def validate_token(
+    current_user: User = Depends(get_current_user)
+):
+    return {"valid": True, "user": current_user.email}

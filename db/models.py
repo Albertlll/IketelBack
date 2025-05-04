@@ -5,6 +5,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, relationship
 import uuid
 from datetime import datetime, timezone
+import random
+from sqlalchemy.exc import IntegrityError
 
 Base = declarative_base()
 
@@ -29,8 +31,7 @@ class World(Base):
     author_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'))
     is_public = Column(Boolean, default=True)
     created_at = Column(DateTime,  default=lambda: datetime.now(timezone.utc))
-    image = Column(String(255), nullable=False)
-
+    image = Column(String(255), nullable=True)
     author = relationship('User', back_populates='worlds')
     words = relationship('Word', back_populates='world')
     sentences = relationship('Sentence', back_populates='world')
@@ -50,47 +51,101 @@ class Word(Base):
 class Sentence(Base):
     __tablename__ = 'sentences'
     id = Column(Integer, Identity(start=1, increment=1), primary_key=True)
-    text = Column(Text, nullable=False)
+    sentence = Column(Text, nullable=False)
     world_id = Column(Integer, ForeignKey('worlds.id', ondelete='CASCADE'), nullable=False)
-    tokens = Column(JSON)  # ["The", "quick", "brown", ...]
 
     world = relationship('World', back_populates='sentences')
 
 
+
+
+
 class AdventureSession(Base):
     __tablename__ = 'adventure_sessions'
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))  # UUID как строка
-    world_id = Column(Integer, ForeignKey('worlds.id'), nullable=False)
-    host_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    join_code = Column(String(6), unique=True)  # ABC123
-    settings = Column(JSON)  # {"max_players": 20, "difficulty": "medium"}
-    is_active = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # 4-символьный буквенно-цифровой код как PRIMARY KEY
+    join_code = Column(String(4), primary_key=True)
+
+    world_id = Column(Integer, ForeignKey('worlds.id'))
+    host_id = Column(Integer, ForeignKey('users.id'))
 
     world = relationship('World', back_populates='sessions')
     host = relationship('User', back_populates='hosted_sessions')
     steps = relationship('AdventureStep', order_by='AdventureStep.step_number')
     participants = relationship('SessionParticipant', back_populates='session')
 
+    # Алфавит для кодов (без 0/O/1/I/L)
+    _CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+    @classmethod
+    def _generate_code(cls) -> str:
+        """Генерирует 4-символьный код (пример: 'X8FZ')"""
+        return ''.join(random.choices(cls._CODE_CHARS, k=4))
+
+    @classmethod
+    def create(cls, db, **kwargs) -> 'AdventureSession':
+        """Создает сессию с уникальным кодом (макс. 5 попыток)"""
+        for _ in range(5):
+            session = cls(
+                join_code=cls._generate_code(),
+                **kwargs
+            )
+            try:
+                db.add(session)
+                db.commit()
+                return session
+            except IntegrityError:
+                db.rollback()
+        raise ValueError("Не удалось создать сессию (попробуйте снова)")
+
+
+
+
+
+
+
+
+
+
 
 class AdventureStep(Base):
     __tablename__ = 'adventure_steps'
     id = Column(Integer, Identity(start=1, increment=1), primary_key=True)
-    session_id = Column(String(36), ForeignKey('adventure_sessions.id'), nullable=False)
+    session_id = Column(String(4), ForeignKey('adventure_sessions.join_code'), nullable=False)
     step_number = Column(Integer, nullable=False)
-    game_type = Column(String(50), nullable=False)  # 'memory', 'word_order', 'quiz'
-    content = Column(JSON, nullable=False)  # {"word_ids": [1,2,3], "sentence_id": 5}
-
     session = relationship('AdventureSession', back_populates='steps')
+
+
+class QuizStep(Base):
+    __tablename__ = 'quiz_steps'
+    id = Column(Integer, ForeignKey('adventure_steps.id'), primary_key=True)
+    question = Column(Text)
+    options = relationship('QuizOption', back_populates='quiz_step')
+
+
+class QuizOption(Base):
+    __tablename__ = 'quiz_options'
+    id = Column(Integer, primary_key=True)
+    quiz_step_id = Column(Integer, ForeignKey('quiz_steps.id'))
+    text = Column(String(255))
+    is_correct = Column(Boolean)  # True только для одного варианта
+
+    quiz_step = relationship('QuizStep', back_populates='options')
+
+
+class WordOrderStep(Base):
+    __tablename__ = 'word_order_steps'
+    id = Column(Integer, ForeignKey('adventure_steps.id'), primary_key=True)
+    sentence_id = Column(Integer, ForeignKey('sentences.id'))
+
+    sentence = relationship('Sentence')
 
 
 class SessionParticipant(Base):
     __tablename__ = 'player_progress'  # Сохраняем ваше имя таблицы
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    session_id = Column(String(36), ForeignKey('adventure_sessions.id'), nullable=False)
+    session_code = Column(String(4), ForeignKey('adventure_sessions.join_code'))
     nickname = Column(String(50), nullable=False)
-    avatar_id = Column(Integer)
+    # avatar_id = Column(Integer)
     socket_id = Column(String(255))
-    joined_at = Column(DateTime, default=datetime.utcnow)
-
     session = relationship('AdventureSession', back_populates='participants')

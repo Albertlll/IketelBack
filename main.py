@@ -60,8 +60,7 @@ app = socketio.ASGIApp(
     
     socketio_server=sio,
     other_asgi_app=fastapi_app,
-    
-    socketio_path='socket.io'
+    socketio_path='/sio'
 )
 
 

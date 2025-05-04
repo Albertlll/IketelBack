@@ -15,18 +15,26 @@ class MinigamePreview(BaseModel):
 class WorldPreview(BaseModel):
     id: int
     title: str
-    image: str
+    image : Optional[str] = None
     
+class SentenceSchema(BaseModel):
+    sentence: str
 
 class WorldDetail(WorldPreview):
     description: Optional[str] = None
     words: List[dict] = []
-    id : int
-    description : str
-    image : str | None = None
-    
+    sentences :  List[dict] = []
+    is_public : bool
+
+class WordSchema(BaseModel):
+    word: str
+    translation: str
+
 
 class WorldCreate(BaseModel):
     title: str
-    description: Optional[str] = None
+    description:Optional[str] = None
     is_public: bool = True
+    words: list[WordSchema]
+    sentences: list[SentenceSchema]
+    image : Optional[str] = None

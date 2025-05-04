@@ -1,3 +1,5 @@
+import base64
+
 import boto3
 import uuid
 from fastapi import UploadFile
@@ -36,4 +38,33 @@ async def upload_image(file: UploadFile, folder: str = "worlds") -> str:
     
     # Возвращаем публичный URL
     file_url = f"{S3_ENDPOINT}/{S3_BUCKET_NAME}/{new_filename}"
-    return file_url 
+    return file_url
+
+
+async def upload_base64(base64_str: str, folder: str = "worlds") -> str:
+    """
+    Загружает base64 изображение в S3 и возвращает URL.
+    Если что-то пошло не так, возвращает None.
+    """
+    try:
+        if "," in base64_str:
+            base64_str = base64_str.split(",")[1]
+        image_data = base64.b64decode(base64_str)
+
+        file_extension = ".jpg"
+        filename = f"{folder}/{uuid.uuid4()}{file_extension}"
+
+        # Загружаем в S3
+        s3_client.put_object(
+            Bucket=settings.s3_bucket,
+            Key=filename,
+            Body=image_data,
+            ContentType="image/jpeg",
+            ACL="public-read"  # если нужно, чтобы файл был публичным
+        )
+
+        return f"{settings.s3_endpoint}/{settings.s3_bucket}/{filename}"
+
+    except Exception as e:
+        print(f"Ошибка загрузки изображения: {e}")
+        return "None"
