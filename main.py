@@ -26,7 +26,7 @@ fastapi_app = FastAPI(
 
 fastapi_app.add_middleware(
     CORSMiddleware,
-    allow_origins=ORIGINS,  # Указываем конкретные домены
+    allow_origins=["*"],  # Указываем конкретные домены
     allow_origin_regex=r"https?://192\.168\.(\d+)\.(\d+)(:\d+)?",  # Поддержка локальной сети
     allow_credentials=True,
     allow_methods=["*"],
