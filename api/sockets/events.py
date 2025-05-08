@@ -18,47 +18,35 @@ handler = logging.StreamHandler()
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
+
 @sio.event
 async def connect(sid, environ, auth_data=None):
-    print("SOCKET CONNECT TRIGGERED")
-    logger.info(f"[CONNECT] SID: {sid}")
-
     db = next(get_db())
-
     try:
-        token = (
-            auth_data.get("token") if auth_data
-            else environ.get("HTTP_AUTHORIZATION", "").replace("Bearer ", "")
-        )
+        # Гость (студент) — нет токена
+        if not auth_data or "token" not in auth_data:
+            await sio.save_session(sid, {"role": "student"})
+            logger.info(f"Guest connected. SID: {sid}")
+            return True  # Разрешаем подключение
 
-        if token:
-            try:
-                user = await get_current_user_ws(token, db)
-                await sio.save_session(sid, {
-                    "user_id": user.id,
-                    "email": user.email,
-                    "role": "host",
-                })
-                logger.info(f"[CONNECT] Authenticated host: {user.email}")
-            except Exception as e:
-                logger.warning(f"[CONNECT] Invalid token, rejecting. Error: {str(e)}")
-                raise ConnectionRefusedError("Invalid token")
-        else:
-            # Гость (студент) — разрешаем подключение без токена
-            await sio.save_session(sid, {
-                "role": "student",
-            })
-            logger.info(f"[CONNECT] Guest connected: SID={sid}")
+        # Хост — проверяем токен
+        token = auth_data["token"]
+        user = await get_current_user_ws(token, db)
 
+        await sio.save_session(sid, {
+            "user_id": user.id,
+            "email": user.email,
+            "role": "host",
+            "is_authenticated": True,
+        })
+        logger.info(f"Host connected. User ID: {user.id}, SID: {sid}")
         return True
 
     except Exception as e:
-        logger.error(f"[CONNECT] Failed: {str(e)}", exc_info=True)
-        raise ConnectionRefusedError("Connection error")
-
+        logger.error(f"Auth failed: {e}")
+        raise ConnectionRefusedError("Invalid token")
     finally:
         db.close()
-
 
 
 
@@ -86,64 +74,32 @@ async def connect(sid, environ, auth_data=None):
 #         logger.error(f"Disconnect error for SID: {sid}. Error: {str(e)}", exc_info=True)
 #
 #
-@sio.on('host_join', namespace='/')
+@sio.on("host_join")
 async def host_join(sid, data):
-    """Обработчик подключения хоста к сессии"""
+    session_data = await sio.get_session(sid)
+
+    if session_data.get("role") != "host":
+        await sio.emit("error", {"message": "Access denied"}, to=sid)
+        return
+
+    db = next(get_db())
     try:
-        logger.info(f"Host join attempt. SID: {sid}, Data: {data}")
+        session = db.query(AdventureSession).filter_by(
 
-        # Проверка наличия обязательных полей
-        if 'token' not in data or 'session_code' not in data:
-            error_msg = "Missing required fields: token or session_code"
-            logger.error(f"{error_msg}. Data: {data}")
-            await sio.emit('error', {'message': error_msg}, to=sid)
+            join_code=data["session_code"],
+            host_id=session_data["user_id"]
+
+        ).first()
+
+        if not session:
+            await sio.emit("error", {"message": "Session not found"}, to=sid)
             return
 
-        logger.debug("Authenticating user...")
-        user = await get_current_user_ws(data['token'], get_db())
-        if not user:
-            error_msg = "User authentication failed"
-            logger.error(f"{error_msg}. Token: {data['token']}")
-            await sio.emit('error', {'message': error_msg}, to=sid)
-            return
+        await sio.enter_room(sid, session.join_code)
+        await sio.emit("host_ready", to=sid)
 
-        logger.info(f"User authenticated. User ID: {user.id}, Email: {user.email}")
-        session_code = data['session_code']
-        logger.debug(f"Session code: {session_code}")
-
-        with get_db() as db:
-            logger.debug(f"Searching session. Code: {session_code}, Host ID: {user.id}")
-            session = db.query(AdventureSession).filter_by(
-                join_code=session_code,
-                host_id=user.id
-            ).first()
-
-            if not session:
-                error_msg = f"Session not found or access denied. Code: {session_code}"
-                logger.error(f"{error_msg}. User ID: {user.id}")
-                raise Exception(error_msg)
-
-            logger.info(f"Session found. Session ID: {session.id}, Code: {session_code}")
-
-            session_data = {
-                'role': 'host',
-                'session_code': session_code,
-                'user_id': user.id
-            }
-            logger.debug(f"Saving session data: {session_data}")
-            await sio.save_session(sid, session_data)
-
-            logger.debug(f"Entering room: {session_code}")
-            await sio.enter_room(sid, session_code)
-
-            logger.info(f"Host successfully joined. SID: {sid}, Room: {session_code}")
-            await sio.emit('host_ready', to=sid)
-
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Host join error. SID: {sid}. Error: {error_msg}", exc_info=True)
-        await sio.emit('error', {'message': error_msg}, to=sid)
-
+    finally:
+        db.close()
 
 @sio.on('student_join')
 async def student_join(sid, data):
@@ -152,6 +108,7 @@ async def student_join(sid, data):
     try:
         session_code = data.get('session_code')
         username = data.get('username')
+
         logger.info(f"Params extracted: code={session_code}, username={username}")
 
         # Валидация
