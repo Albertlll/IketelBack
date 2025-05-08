@@ -156,10 +156,10 @@ async def handle_student_join(sid, data):
             raise ValueError("Session not found")
 
         # Сохраняем данные ученика
-        # await sio.save_session(sid, {
-        #     'role': 'student',
-        #     'session_code': session_code
-        # })
+        await sio.save_session(sid, {
+             'role': 'student',
+             'session_code': session_code
+        })
         #
         # # Добавляем в комнату сессии
         # await sio.enter_room(sid, f'session_{session_code}')
@@ -167,15 +167,12 @@ async def handle_student_join(sid, data):
         # Отправляем подтверждение
         await sio.emit('student_joined', {
             'message': 'Successfully joined session',
-            'session': session_code,
-            'username' : username
         }, to=sid)
 
         # Уведомляем хост о новом ученике
-        await sio.emit('new_student', {
+        await sio.emit('new_student_joined', {
             'student_sid': sid,
-            'session': session_code
-        }, room=f'host_{session_code}')
+        }, room=session_code)
 
     except Exception as e:
         logger.error(f"Student join error: {str(e)}")
