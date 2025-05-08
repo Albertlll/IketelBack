@@ -20,6 +20,8 @@ logger.addHandler(handler)
 
 @sio.on("connect")
 async def handle_connect(sid, environ, auth_data=None):
+
+    print("Подключаемся к сокету")
     db = next(get_db())  # Получаем сессию БД вручную
     try:
         token = (
@@ -138,12 +140,14 @@ async def handle_student_join(sid, data):
     """
     try:
         session_code = data.get('session_code')
+        username = data.get('session_code')
+
 
         # Валидация кода сессии
         if not session_code or len(session_code) != 4:
             raise ValueError("Invalid session code")
 
-        logger.info(f"Student joined. SID: {sid}, Session: {session_code}")
+        logger.info(f"Student joined. SID: {sid}, Session: {session_code} Username {username}")
 
         # Проверяем существование сессии в БД
         db = next(get_db())
@@ -152,18 +156,19 @@ async def handle_student_join(sid, data):
             raise ValueError("Session not found")
 
         # Сохраняем данные ученика
-        await sio.save_session(sid, {
-            'role': 'student',
-            'session_code': session_code
-        })
-
-        # Добавляем в комнату сессии
-        await sio.enter_room(sid, f'session_{session_code}')
+        # await sio.save_session(sid, {
+        #     'role': 'student',
+        #     'session_code': session_code
+        # })
+        #
+        # # Добавляем в комнату сессии
+        # await sio.enter_room(sid, f'session_{session_code}')
 
         # Отправляем подтверждение
         await sio.emit('student_joined', {
             'message': 'Successfully joined session',
-            'session': session_code
+            'session': session_code,
+            'username' : username
         }, to=sid)
 
         # Уведомляем хост о новом ученике
