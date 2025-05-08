@@ -134,51 +134,42 @@ async def host_join(sid, data):
 
 @sio.on('student_join', namespace='/')
 async def handle_student_join(sid, data):
-    """
-    Обработчик подключения ученика
-    Не требует JWT, только session_code
-    """
+    logger.info(f"START handling student_join. SID: {sid}, Data: {data}")
+
     try:
         session_code = data.get('session_code')
         username = data.get('username')
+        logger.info(f"Params extracted: code={session_code}, username={username}")
 
-
-        # Валидация кода сессии
+        # Валидация
         if not session_code or len(session_code) != 4:
             raise ValueError("Invalid session code")
 
-        logger.info(f"Student joined. SID: {sid}, Session: {session_code} Username {username}")
-
-        # Проверяем существование сессии в БД
+        # Проверка БД
+        logger.info("Accessing DB...")
         db = next(get_db())
         session = db.query(AdventureSession).filter_by(join_code=session_code).first()
+        logger.info(f"DB query result: {session}")
+
         if not session:
             raise ValueError("Session not found")
 
-        # Сохраняем данные ученика
-        await sio.save_session(sid, {
-             'role': 'student',
-             'session_code': session_code
-        })
-        #
-        # # Добавляем в комнату сессии
-        # await sio.enter_room(sid, f'session_{session_code}')
+        # Сохраняем сессию
+        logger.info("Saving session...")
+        await sio.save_session(sid, {'role': 'student', 'session_code': session_code})
 
-        # Отправляем подтверждение
-        await sio.emit('student_joined', {
-            'message': 'Successfully joined session',
-        }, to=sid)
+        # Отправка подтверждения
+        logger.info(f"Emitting student_joined to {sid}")
+        await sio.emit('student_joined', {'message': 'Success'}, to=sid)
 
-        # Уведомляем хост о новом ученике
-        await sio.emit('new_student_joined', {
-            'student_sid': sid,
-        }, room=session_code)
+        # Уведомление хоста
+        logger.info(f"Emitting new_student_joined to room {session_code}")
+        await sio.emit('new_student_joined', {'sid': sid}, room=session_code)
 
-        return {'status': 'success'}  #
+        logger.info("Handler completed successfully")
+        return True
 
     except Exception as e:
-        logger.error(f"Student join error: {str(e)}")
-        await sio.emit('join_error', {
-            'message': str(e)
-        }, to=sid)
-        return {'status': 'error', 'message': str(e)}
+        logger.error(f"Error in handler: {str(e)}", exc_info=True)
+        await sio.emit('join_error', {'error': str(e)}, to=sid)
+        return False
