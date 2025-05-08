@@ -134,7 +134,7 @@ async def student_join(sid, data):
 
         # Уведомление хоста
         logger.info(f"Emitting new_student_joined to room {session_code}")
-        await sio.emit('new_student_joined', {'sid': sid}, room=session_code)
+        await sio.emit('new_student_joined', {'sid': sid, 'username' : username}, room=session_code)
 
         logger.info("Handler completed successfully")
         return True
