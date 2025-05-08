@@ -20,32 +20,43 @@ logger.addHandler(handler)
 
 @sio.on("connect")
 async def handle_connect(sid, environ, auth_data=None):
+    logger.info(f"[CONNECT] SID: {sid}")
+    db = next(get_db())
 
-    print("Подключаемся к сокету")
-    db = next(get_db())  # Получаем сессию БД вручную
     try:
         token = (
             auth_data.get("token") if auth_data
             else environ.get("HTTP_AUTHORIZATION", "").replace("Bearer ", "")
         )
-        if not token:
-            logger.error("No token provided")
-            raise ConnectionRefusedError("Token is required")
 
-        user = await get_current_user_ws(token, db)
+        if token:
+            try:
+                user = await get_current_user_ws(token, db)
+                await sio.save_session(sid, {
+                    "user_id": user.id,
+                    "email": user.email,
+                    "role": "host",
+                })
+                logger.info(f"[CONNECT] Authenticated host: {user.email}")
+            except Exception as e:
+                logger.warning(f"[CONNECT] Invalid token, rejecting. Error: {str(e)}")
+                raise ConnectionRefusedError("Invalid token")
+        else:
+            # Гость (студент) — разрешаем подключение без токена
+            await sio.save_session(sid, {
+                "role": "student",
+            })
+            logger.info(f"[CONNECT] Guest connected: SID={sid}")
 
-        await sio.save_session(sid, {
-            "user_id": user.id,
-            "email": user.email
-        })
-        logger.info(f"User {user.email} connected successfully")
         return True
 
     except Exception as e:
-        logger.error(f"Connection failed: {str(e)}")
-        raise ConnectionRefusedError("Authentication failed")
+        logger.error(f"[CONNECT] Failed: {str(e)}", exc_info=True)
+        raise ConnectionRefusedError("Connection error")
+
     finally:
         db.close()
+
 
 
 
