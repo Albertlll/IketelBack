@@ -132,7 +132,7 @@ async def host_join(sid, data):
         await sio.emit('error', {'message': error_msg}, to=sid)
 
 
-@sio.on('student_join', namespace='/')
+@sio.on('student_join')
 async def student_join(sid, data):
     logger.info(f"START handling student_join. SID: {sid}, Data: {data}")
 
