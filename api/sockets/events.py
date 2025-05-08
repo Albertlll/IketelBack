@@ -140,7 +140,7 @@ async def handle_student_join(sid, data):
     """
     try:
         session_code = data.get('session_code')
-        username = data.get('session_code')
+        username = data.get('username')
 
 
         # Валидация кода сессии
@@ -174,8 +174,11 @@ async def handle_student_join(sid, data):
             'student_sid': sid,
         }, room=session_code)
 
+        return {'status': 'success'}  #
+
     except Exception as e:
         logger.error(f"Student join error: {str(e)}")
         await sio.emit('join_error', {
             'message': str(e)
         }, to=sid)
+        return {'status': 'error', 'message': str(e)}
