@@ -18,9 +18,11 @@ handler = logging.StreamHandler()
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-@sio.on("connect")
-async def handle_connect(sid, environ, auth_data=None):
+@sio.event
+async def connect(sid, environ, auth_data=None):
+    print("SOCKET CONNECT TRIGGERED")
     logger.info(f"[CONNECT] SID: {sid}")
+
     db = next(get_db())
 
     try:
