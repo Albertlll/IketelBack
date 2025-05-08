@@ -19,6 +19,7 @@ async def create_adventure(
         db: Session = Depends(get_db),
         user: User = Depends(get_current_user)
 ):
+    print(f"!!! Запрос получен: {request_data}")
     """
     Создаёт новую игровую сессию, используя встроенный генератор кодов из модели.
     """
