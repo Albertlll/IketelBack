@@ -21,7 +21,7 @@ def check_origin(origin):
 # Создаем Socket.IO сервер с явными параметрами
 sio = socketio.AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins=check_origin,
+    cors_allowed_origins="*",
     logger=True,  # Включаем логирование
     engineio_logger=True,
     ping_timeout=60,
@@ -30,8 +30,3 @@ sio = socketio.AsyncServer(
 )
 
 
-@sio.on('host_join', namespace='/')
-async def host_join(sid, data):
-    logger.debug(f"!!! ОБРАБОТЧИК host_join ВЫЗВАН !!! SID: {sid}")
-    logger.debug(f"Полученные данные: {data}")
-    await sio.emit('host_join_ack', {'received': True}, to=sid)
