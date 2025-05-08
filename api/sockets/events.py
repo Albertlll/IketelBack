@@ -3,7 +3,7 @@ import logging
 
 from db.models import SessionParticipant, AdventureSession
 from db.session import get_db
-from server import sio
+from .server import sio
 from core.security import get_current_user_ws
 
 # Настройка логгера

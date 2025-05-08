@@ -1,9 +1,5 @@
-import socketio
 import logging
-from core.consts import ORIGINS
-from core.security import get_current_user_ws
-from db.session import get_db
-from . import events
+import socketio
 
 # Настройка логгера с максимальной детализацией
 logging.basicConfig(level=logging.DEBUG)
