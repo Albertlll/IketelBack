@@ -12,7 +12,7 @@ logger.setLevel(logging.DEBUG)
 # Создаем Socket.IO сервер с явными параметрами
 sio = socketio.AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins=ORIGINS,
+    cors_allowed_origins=["*"],
     logger=True,  # Включаем логирование
     engineio_logger=True,
     ping_timeout=60,
