@@ -52,7 +52,7 @@ class HostPermissionError(ConnectError):
 
 
 @sio.event
-async def connect(sid, auth_data=None):
+async def connect(sid, environ, auth_data=None):
     db = next(get_db())
     try:
         if not auth_data or "token" not in auth_data:
