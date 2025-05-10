@@ -114,7 +114,8 @@ async def disconnect(sid):
 
             if room and username:
                 await sio.emit("student_left",
-                               {"username": username},
+                               {"sid": sid},
+
                                room=room
                                )
 
