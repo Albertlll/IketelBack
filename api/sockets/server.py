@@ -19,11 +19,10 @@ def check_origin(origin):
 sio = socketio.AsyncServer(
     async_mode='asgi',
     cors_allowed_origins="*",
-    logger=True,  # Включаем логирование
+    logger=True,
     engineio_logger=True,
     ping_timeout=60,
     ping_interval=25,
-    namespaces=['/']  # Явно указываем namespace
 )
 
 

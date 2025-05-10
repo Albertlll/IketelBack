@@ -1,35 +1,63 @@
 from sqlalchemy.orm import Session
 import logging
 
-from db.models import SessionParticipant, AdventureSession
+from db.models import SessionParticipant, AdventureSession, AdventureStep, QuizOption
 from db.session import get_db
 from .server import sio
 from core.security import get_current_user_ws
 
-# Настройка логгера
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)  # Устанавливаем уровень логирования
+logger.setLevel(logging.DEBUG)
 
-# Форматтер для логов
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-# Обработчик для вывода в консоль
 handler = logging.StreamHandler()
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
+host_sessions = {}
+
+
+def calculate_score(is_correct: bool, time_spent: float, base_points=100) -> int:
+    if not is_correct:
+        return 0
+
+    max_time = 30.0
+    time_factor = min(max_time, time_spent) / max_time
+    return int(base_points * (1 - time_factor))  # От 100 до 0
+
+
+
+
+class ConnectError(Exception):
+    """Базовая ошибка подключения"""
+    def __init__(self, message="Ошибка подключения"):
+        self.message = message
+        super().__init__(self.message)
+
+class SessionNotFoundError(ConnectError):
+    def __init__(self):
+        super().__init__("Сессия не найдена")
+
+class InvalidCodeError(ConnectError):
+    def __init__(self):
+        super().__init__("Неверный код сессии")
+
+class HostPermissionError(ConnectError):
+    def __init__(self):
+        super().__init__("Только хост может выполнить это действие")
+
+
+
+
 
 @sio.event
-async def connect(sid, environ, auth_data=None):
+async def connect(sid, auth_data=None):
     db = next(get_db())
     try:
-        # Гость (студент) — нет токена
         if not auth_data or "token" not in auth_data:
             await sio.save_session(sid, {"role": "student"})
-            logger.info(f"Guest connected. SID: {sid}")
-            return True  # Разрешаем подключение
 
-        # Хост — проверяем токен
         token = auth_data["token"]
         user = await get_current_user_ws(token, db)
 
@@ -39,107 +67,189 @@ async def connect(sid, environ, auth_data=None):
             "role": "host",
             "is_authenticated": True,
         })
-        logger.info(f"Host connected. User ID: {user.id}, SID: {sid}")
-        return True
 
     except Exception as e:
-        logger.error(f"Auth failed: {e}")
         raise ConnectionRefusedError("Invalid token")
+
     finally:
         db.close()
 
 
+@sio.event
+async def disconnect(sid):
+    try:
+        session_data = await sio.get_session(sid)
+        logger.debug(f"Client disconnected: {session_data}")
+
+        if session_data.get("role") == "host":
+            room = session_data.get("session_code")
+
+            if room:
+                await sio.emit("host_disconnected",
+                               {"message": "Хост покинул игру"},
+                               room=room
+                               )
+
+            db = next(get_db())
+            try:
+                session = db.query(AdventureSession).filter_by(
+                    join_code=room,
+                    host_id=session_data["user_id"]
+                ).first()
+
+                if session:
+                    db.delete(session)
+                    db.commit()
+                    logger.info(f"Session {room} deleted")
+
+            except Exception as e:
+                logger.error(f"DB cleanup error: {str(e)}")
+                db.rollback()
+            finally:
+                db.close()
+
+        elif session_data.get("role") == "student":
+            room = session_data.get("session_code")
+            username = session_data.get("username")
+
+            if room and username:
+                await sio.emit("student_left",
+                               {"username": username},
+                               room=room
+                               )
+
+        await sio.leave_room(sid, "*")
+
+    except KeyError:
+        logger.warning(f"Session data not found for SID: {sid}")
+    except Exception as e:
+        logger.error(f"Unexpected disconnect error: {str(e)}", exc_info=True)
 
 
-
-#
-# @sio.event
-# async def disconnect(sid):
-#     """Обработчик отключения клиента"""
-#     try:
-#         logger.info(f"Client disconnected. SID: {sid}")
-#
-#         with get_db() as db:
-#             logger.debug(f"Searching participant with SID: {sid}")
-#             participant = db.query(SessionParticipant).filter_by(socket_id=sid).first()
-#
-#             if participant:
-#                 logger.info(f"Deleting participant. ID: {participant.id}, SID: {sid}")
-#                 db.delete(participant)
-#                 db.commit()
-#                 logger.debug("Participant deleted successfully")
-#             else:
-#                 logger.debug(f"No participant found for SID: {sid}")
-#     except Exception as e:
-#         logger.error(f"Disconnect error for SID: {sid}. Error: {str(e)}", exc_info=True)
-#
-#
 @sio.on("host_join")
 async def host_join(sid, data):
-    session_data = await sio.get_session(sid)
-
-    if session_data.get("role") != "host":
-        await sio.emit("error", {"message": "Access denied"}, to=sid)
-        return
-
     db = next(get_db())
     try:
+        session_data = await sio.get_session(sid)
+        if session_data.get("role") != "host":
+            raise HostPermissionError
+
         session = db.query(AdventureSession).filter_by(
-
-            join_code=data["session_code"],
             host_id=session_data["user_id"]
-
         ).first()
 
         if not session:
-            await sio.emit("error", {"message": "Session not found"}, to=sid)
-            return
+            await sio.emit("error", {"message": "Сессия не найдена"}, to=sid)
 
         await sio.enter_room(sid, session.join_code)
         await sio.emit("host_ready", to=sid)
 
+    except ConnectError as e:
+        await sio.emit("connection_error", {"message": e.message}, to=sid)
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка : {e}")
+        await sio.emit("error", {"message" : "Внутренняя ошибка сервера"})
     finally:
         db.close()
 
+
 @sio.on('student_join')
 async def student_join(sid, data):
-    logger.info(f"START handling student_join. SID: {sid}, Data: {data}")
-
+    db = next(get_db())
     try:
         session_code = data.get('session_code')
-        username = data.get('username')
 
-        logger.info(f"Params extracted: code={session_code}, username={username}")
-
-        # Валидация
         if not session_code or len(session_code) != 4:
-            raise ValueError("Invalid session code")
-
-        # Проверка БД
-        logger.info("Accessing DB...")
-        db = next(get_db())
+            raise InvalidCodeError()
         session = db.query(AdventureSession).filter_by(join_code=session_code).first()
-        logger.info(f"DB query result: {session}")
-
         if not session:
-            raise ValueError("Session not found")
+            raise SessionNotFoundError()
 
-        # Сохраняем сессию
-        logger.info("Saving session...")
-        await sio.save_session(sid, {'role': 'student', 'session_code': session_code})
-
-        # Отправка подтверждения
-        logger.info(f"Emitting student_joined to {sid}")
+        await sio.save_session(sid, {
+            "role": "student",
+            "room_code": "ABCD",
+            "progress": {
+                "current_step": 0,
+            }
+        })
         await sio.emit('student_joined', {'message': 'Success'}, to=sid)
+        await sio.emit('new_student_joined', {'sid': sid, 'username' : data.get('username')}, room=session_code)
 
-        # Уведомление хоста
-        logger.info(f"Emitting new_student_joined to room {session_code}")
-        await sio.emit('new_student_joined', {'sid': sid, 'username' : username}, room=session_code)
+    except ConnectError as e:
+        await sio.emit('join_error', {'error': str(e)}, to=sid)
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка : {e}")
+        await sio.emit("error", {"message" : "Внутренняя ошибка сервера"})
+    finally:
+        db.close()
 
-        logger.info("Handler completed successfully")
-        return True
+
+@sio.on("game_start")
+async def game_start(sid, data):
+    session_data = await sio.get_session(sid)
+    if session_data.get("role") != "host":
+        await sio.emit("error", {"message": "Только хост может стартовать игру"}, to=sid)
+        return
+
+    room = session_data["session_code"]
+    await sio.emit("game_started", room=room)
+
+
+@sio.on('check_answer')
+async def check_answer(sid, data):
+    db = next(get_db())
+    try:
+        session_data = await sio.get_session(sid)
+        room_code = session_data["room_code"]
+
+        step = db.query(AdventureStep).filter_by(
+            session_id=room_code,
+            step_number=data["step"]
+        ).first()
+
+        if not step:
+            raise ValueError("Шаг не найден")
+
+        if step.quiz_step:
+            correct_option = db.query(QuizOption).filter_by(
+                quiz_step_id=step.quiz_step.id,
+                is_correct=True
+            ).first()
+            is_correct = (data["answer_id"] == correct_option.id)
+
+        else:
+            is_correct = (data["answer"] == step.word_order_step.sentence.sentence)
+
+
+
+        score = calculate_score(is_correct, data["time_spent"])
+
+        if "scores" not in session_data:
+            session_data["scores"] = {}
+
+        session_data["scores"][str(data["step"])] = {
+            "score": score,
+            "time": data["time_spent"],
+            "is_correct": is_correct
+        }
+
+
+        await sio.emit("answer_result", {
+            "is_correct": is_correct,
+        }, to=sid)
+
+        host_sid = host_sessions.get(room_code)
+        if host_sid:
+            await sio.emit("player_answered", {
+                "player_sid": sid,
+                "step": data["step"],
+                "is_correct": is_correct,
+                "username": session_data.get("username", "Аноним")
+            }, to=host_sid)
 
     except Exception as e:
-        logger.error(f"Error in handler: {str(e)}", exc_info=True)
-        await sio.emit('join_error', {'error': str(e)}, to=sid)
-        return False
+        await sio.emit("error", {"message": str(e)}, to=sid)
+    finally:
+        db.close()
+
+
