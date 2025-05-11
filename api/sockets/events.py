@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 import logging
 
-from db.models import SessionParticipant, AdventureSession, AdventureStep, QuizOption
+from db.models import AdventureSession, AdventureStep, QuizOption
 from db.session import get_db
 from .server import sio
 from core.security import get_current_user_ws
