@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 Base = declarative_base()
 
 
+
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, Identity(start=1, increment=1), primary_key=True)
@@ -71,7 +72,6 @@ class AdventureSession(Base):
     world = relationship('World', back_populates='sessions')
     host = relationship('User', back_populates='hosted_sessions')
     steps = relationship('AdventureStep', order_by='AdventureStep.step_number')
-    participants = relationship('SessionParticipant', back_populates='session')
 
     # Алфавит для кодов (без 0/O/1/I/L)
     _CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
