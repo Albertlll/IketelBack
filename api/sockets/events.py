@@ -147,11 +147,9 @@ async def host_join(sid, data):
             world_id=data["world_id"],
         )
         db.add(session)
+        db.commit()
 
         steps = generate_steps(session.join_code, db)
-
-        db.add_all(steps)
-        db.commit()
 
         await sio.enter_room(sid, session.join_code)
 
