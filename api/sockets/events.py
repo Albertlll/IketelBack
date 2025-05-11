@@ -57,6 +57,7 @@ async def connect(sid, environ, auth_data=None):
     try:
         if not auth_data or "token" not in auth_data:
             await sio.save_session(sid, {"role": "student"})
+            return
 
         token = auth_data["token"]
         user = await get_current_user_ws(token, db)
