@@ -5,6 +5,7 @@ from db.models import SessionParticipant, AdventureSession, AdventureStep, QuizO
 from db.session import get_db
 from .server import sio
 from core.security import get_current_user_ws
+from ..utils.step_generator import generate_steps
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -46,6 +47,11 @@ class InvalidCodeError(ConnectError):
 class HostPermissionError(ConnectError):
     def __init__(self):
         super().__init__("Только хост может выполнить это действие")
+
+class IntegrityError(ConnectError):
+    def __init__(self):
+        super().__init__("Только хост может выполнить это действие")
+
 
 
 
@@ -134,23 +140,40 @@ async def host_join(sid, data):
     try:
         session_data = await sio.get_session(sid)
         if session_data.get("role") != "host":
-            raise HostPermissionError
+            raise HostPermissionError()
 
-        session = db.query(AdventureSession).filter_by(
-            host_id=session_data["user_id"]
-        ).first()
+        session = AdventureSession(
+            host_id=session_data["user_id"],
+            world_id=data["world_id"],
+        )
+        db.add(session)
 
-        if not session:
-            await sio.emit("error", {"message": "Сессия не найдена"}, to=sid)
+        steps = generate_steps(session.join_code, db)
+
+        db.add_all(steps)
+        db.commit()
 
         await sio.enter_room(sid, session.join_code)
-        await sio.emit("host_ready", to=sid)
 
-    except ConnectError as e:
-        await sio.emit("connection_error", {"message": e.message}, to=sid)
+        await sio.emit("host_ready", {
+            "join_code": session.join_code,
+            "steps_count": len(steps),
+        }, to=sid)
+
+    except IntegrityError as e:
+        logger.error(f"Session creation conflict: {e}")
+        await sio.emit("error", {
+            "message": "Не удалось создать сессию (попробуйте снова)"
+        }, to=sid)
+        db.rollback()
+    except HostPermissionError as e:
+        await sio.emit("auth_error", {"message": e.message}, to=sid)
     except Exception as e:
-        logger.error(f"Неожиданная ошибка : {e}")
-        await sio.emit("error", {"message" : "Внутренняя ошибка сервера"})
+        logger.error(f"Unexpected error in host_join: {e}", exc_info=True)
+        await sio.emit("error", {
+            "message": "Ошибка при создании игры"
+        }, to=sid)
+        db.rollback()
     finally:
         db.close()
 
@@ -169,7 +192,7 @@ async def student_join(sid, data):
 
         await sio.save_session(sid, {
             "role": "student",
-            "room_code": "ABCD",
+            "room_code": session_code,
             "progress": {
                 "current_step": 0,
             }
