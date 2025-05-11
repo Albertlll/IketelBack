@@ -9,6 +9,7 @@ from api.endpoints import worlds, game, auth, adventures
 from api.sockets.server import sio
 import api.sockets.events
 
+
 from core.consts import ORIGINS
 # Настройка логирования
 logging.basicConfig(
