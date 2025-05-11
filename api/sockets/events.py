@@ -89,7 +89,7 @@ async def disconnect(sid):
         logger.debug(f"Client disconnected: {session_data}")
 
         if session_data.get("role") == "host":
-            room = session_data.get("session_code")
+            room = session_data.get("room_code")
 
             if room:
                 await sio.emit("host_disconnected",
@@ -116,10 +116,11 @@ async def disconnect(sid):
                 db.close()
 
         elif session_data.get("role") == "student":
-            room = session_data.get("session_code")
-            username = session_data.get("username")
+            room = session_data.get("room_code")
 
-            if room and username:
+            logger.info(f"Выход из комнаты {room}")
+
+            if room:
                 await sio.emit("student_left",
                                {"sid": sid},
 
@@ -147,12 +148,14 @@ async def host_join(sid, data):
             host_id=session_data["user_id"],
             world_id=data["world_id"],
         )
-        db.add(session)
-        db.commit()
+
+        host_sessions[session.join_code] = sid
 
         steps = generate_steps(session.join_code, db)
 
         await sio.enter_room(sid, session.join_code)
+
+
 
         await sio.emit("host_ready", {
             "join_code": session.join_code,
@@ -181,23 +184,23 @@ async def host_join(sid, data):
 async def student_join(sid, data):
     db = next(get_db())
     try:
-        session_code = data.get('session_code')
+        room_code = data.get('room code')
 
-        if not session_code or len(session_code) != 4:
+        if not room_code or len(room_code) != 4:
             raise InvalidCodeError()
-        session = db.query(AdventureSession).filter_by(join_code=session_code).first()
+        session = db.query(AdventureSession).filter_by(join_code=room_code).first()
         if not session:
             raise SessionNotFoundError()
 
         await sio.save_session(sid, {
             "role": "student",
-            "room_code": session_code,
+            "room_code": room_code,
             "progress": {
                 "current_step": 0,
             }
         })
         await sio.emit('student_joined', {'message': 'Success'}, to=sid)
-        await sio.emit('new_student_joined', {'sid': sid, 'username' : data.get('username')}, room=session_code)
+        await sio.emit('new_student_joined', {'sid': sid, 'username' : data.get('username')}, room=room_code)
 
     except ConnectError as e:
         await sio.emit('join_error', {'error': str(e)}, to=sid)
@@ -215,7 +218,7 @@ async def game_start(sid, data):
         await sio.emit("error", {"message": "Только хост может стартовать игру"}, to=sid)
         return
 
-    room = session_data["session_code"]
+    room = session_data["room_code"]
     await sio.emit("game_started", room=room)
 
 
