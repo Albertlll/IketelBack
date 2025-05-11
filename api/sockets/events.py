@@ -73,6 +73,7 @@ async def connect(sid, environ, auth_data=None):
             "email": user.email,
             "role": "host",
             "is_authenticated": True,
+            "isStarted" : False
         })
 
     except Exception as e:

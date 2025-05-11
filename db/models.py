@@ -18,7 +18,6 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     created_at = Column(DateTime,  default=lambda: datetime.now(timezone.utc))
-
     worlds = relationship('World', back_populates='author')
     hosted_sessions = relationship('AdventureSession', back_populates='host')
 
@@ -100,14 +99,6 @@ class AdventureSession(Base):
 
 
 
-
-
-
-
-
-
-
-
 class AdventureStep(Base):
     __tablename__ = 'adventure_steps'
     id = Column(Integer, Identity(start=1, increment=1), primary_key=True)
@@ -140,12 +131,3 @@ class WordOrderStep(Base):
 
     sentence = relationship('Sentence')
 
-
-class SessionParticipant(Base):
-    __tablename__ = 'player_progress'  # Сохраняем ваше имя таблицы
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    session_code = Column(String(4), ForeignKey('adventure_sessions.join_code'))
-    nickname = Column(String(50), nullable=False)
-    # avatar_id = Column(Integer)
-    socket_id = Column(String(255))
-    session = relationship('AdventureSession', back_populates='participants')
