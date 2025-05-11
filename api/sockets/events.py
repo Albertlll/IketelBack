@@ -184,7 +184,7 @@ async def host_join(sid, data):
 async def student_join(sid, data):
     db = next(get_db())
     try:
-        room_code = data.get('room code')
+        room_code = data.get('room_code')
 
         if not room_code or len(room_code) != 4:
             raise InvalidCodeError()
