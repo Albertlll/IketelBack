@@ -142,7 +142,8 @@ async def host_join(sid, data):
         if session_data.get("role") != "host":
             raise HostPermissionError()
 
-        session = AdventureSession(
+        session = AdventureSession.create(
+            db,
             host_id=session_data["user_id"],
             world_id=data["world_id"],
         )
