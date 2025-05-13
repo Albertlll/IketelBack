@@ -17,7 +17,7 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 host_sessions = {}
-
+leaderboard = {}
 
 def calculate_score(is_correct: bool, time_spent: float, base_points=100) -> int:
     if not is_correct:
@@ -144,6 +144,8 @@ async def host_join(sid, data):
         if session_data.get("role") != "host":
             raise HostPermissionError()
 
+        logger.info(f" Мир с айдишником {data['world_id']}")
+
         session = AdventureSession.create(
             db,
             host_id=session_data["user_id"],
@@ -151,6 +153,7 @@ async def host_join(sid, data):
         )
 
         host_sessions[session.join_code] = sid
+        session_data["room_code"] = session.join_code
 
         steps = generate_steps(session.join_code, db)
 
@@ -200,6 +203,14 @@ async def student_join(sid, data):
                 "current_step": 0,
             }
         })
+
+        leaderboard[room_code][sid] = {
+            "username" : data.get("username"),
+            "score" : 0
+        }
+
+
+        await sio.enter_room(sid, room_code)
         await sio.emit('student_joined', {'message': 'Success'}, to=sid)
         await sio.emit('new_student_joined', {'sid': sid, 'username' : data.get('username')}, room=room_code)
 
@@ -214,70 +225,108 @@ async def student_join(sid, data):
 
 @sio.on("game_start")
 async def game_start(sid, data):
-    session_data = await sio.get_session(sid)
-    if session_data.get("role") != "host":
-        await sio.emit("error", {"message": "Только хост может стартовать игру"}, to=sid)
-        return
+    db = next(get_db())
+    try:
+        session_data = await sio.get_session(sid)
+        if session_data.get("role") != "host":
+            await sio.emit("error", {"message": "Только хост может стартовать игру"}, to=sid)
+            return
 
-    room = session_data["room_code"]
-    await sio.emit("game_started", room=room)
+        room = session_data["room_code"]
+
+        # Получаем все шаги игры из БД
+        steps = db.query(AdventureStep).filter_by(
+            session_id=room
+        ).order_by(AdventureStep.step_number).all()
+
+        # Форматируем задания для клиента
+        tasks = []
+        for step in steps:
+            if step.quiz_step:
+                tasks.append({
+                    "type": "quiz",
+                    "step_id": step.id,
+                    "step_number": step.step_number,
+                    "question": step.quiz_step.question,
+                    "options": [{"id": opt.id, "text": opt.text} for opt in step.quiz_step.options]
+                })
+            elif step.word_order_step:
+                tasks.append({
+                    "type": "word_order",
+                    "step_id": step.id,
+                    "step_number": step.step_number,
+                    "sentence": step.word_order_step.sentence.sentence.lower(),
+                    "words" : step.word_order_step.sentence.sentence.lower().split()
+                })
+
+        leaderboard_list = [
+            {"sid": sid, "username": data["username"], "score": data["score"]}
+            for sid, data in leaderboard[room].items()
+        ]
+
+        await sio.emit("game_started",
+            tasks, room=room)
+
+        await sio.emit("leaderboard", leaderboard_list, to=sid)
+
+        session_data["isStarted"] = True
+        await sio.save_session(sid, session_data)
+
+    except Exception as e:
+        logger.error(f"Game start error: {e}", exc_info=True)
+        await sio.emit("error", {"message": "Ошибка при старте игры"}, to=sid)
+    finally:
+        db.close()
 
 
 @sio.on('check_answer')
 async def check_answer(sid, data):
     db = next(get_db())
-    try:
-        session_data = await sio.get_session(sid)
-        room_code = session_data["room_code"]
+    print(data)
+    session_data = await sio.get_session(sid)
+    room_code = session_data["room_code"]
 
-        step = db.query(AdventureStep).filter_by(
-            session_id=room_code,
-            step_number=data["step"]
-        ).first()
+    print([i.step_number for i in db.query(AdventureStep).filter_by(session_id=room_code)])
 
-        if not step:
-            raise ValueError("Шаг не найден")
 
-        if step.quiz_step:
-            correct_option = db.query(QuizOption).filter_by(
+    step = db.query(AdventureStep).filter_by(
+        session_id=room_code,
+        step_number=data["step"] + 1
+    ).first()
+
+    if not step:
+        raise ValueError("Шаг не найден")
+
+    if step.quiz_step:
+        correct_option = db.query(QuizOption).filter_by(
                 quiz_step_id=step.quiz_step.id,
                 is_correct=True
             ).first()
-            is_correct = (data["answer_id"] == correct_option.id)
+        is_correct = (data['answer'] == correct_option.id)
 
-        else:
-            is_correct = (data["answer"] == step.word_order_step.sentence.sentence)
-
-
-
-        score = calculate_score(is_correct, data["time_spent"])
-
-        if "scores" not in session_data:
-            session_data["scores"] = {}
-
-        session_data["scores"][str(data["step"])] = {
-            "score": score,
-            "time": data["time_spent"],
-            "is_correct": is_correct
-        }
+    else:
+        is_correct = (data["answer"] == step.word_order_step.sentence.sentence.lower().split())
 
 
-        await sio.emit("answer_result", {
-            "is_correct": is_correct,
-        }, to=sid)
+    print(is_correct)
 
-        host_sid = host_sessions.get(room_code)
-        if host_sid:
-            await sio.emit("player_answered", {
-                "player_sid": sid,
-                "step": data["step"],
-                "is_correct": is_correct,
-                "username": session_data.get("username", "Аноним")
-            }, to=host_sid)
 
-    except Exception as e:
-        await sio.emit("error", {"message": str(e)}, to=sid)
-    finally:
-        db.close()
 
+    score = calculate_score(is_correct, data["time_spent"])
+
+    print(score)
+
+    leaderboard[room_code][sid]["score"] += score
+
+    host_sid = host_sessions.get(room_code)
+    if host_sid:
+        leaderboard_list = [
+            {"sid": sid, "username": data["username"], "score": data["score"]}
+            for sid, data in leaderboard[room_code].items()
+        ]
+        await sio.emit("leaderboard", leaderboard_list, to=host_sessions[room_code])
+
+
+
+    db.close()
 

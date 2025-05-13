@@ -25,6 +25,7 @@ class User(Base):
 
 class World(Base):
     __tablename__ = 'worlds'
+    __tablename__ = 'worlds'
     id = Column(Integer, Identity(start=1, increment=1), primary_key=True)
     title = Column(String(255), nullable=False)
     description = Column(Text)
@@ -106,13 +107,16 @@ class AdventureStep(Base):
     step_number = Column(Integer, nullable=False)
     session = relationship('AdventureSession', back_populates='steps')
 
+    quiz_step = relationship("QuizStep", uselist=False, back_populates="step")
+    word_order_step = relationship("WordOrderStep", uselist=False, back_populates="step")
+
 
 class QuizStep(Base):
     __tablename__ = 'quiz_steps'
     id = Column(Integer, ForeignKey('adventure_steps.id'), primary_key=True)
     question = Column(Text)
     options = relationship('QuizOption', back_populates='quiz_step')
-
+    step = relationship("AdventureStep", back_populates="quiz_step")
 
 class QuizOption(Base):
     __tablename__ = 'quiz_options'
@@ -130,4 +134,4 @@ class WordOrderStep(Base):
     sentence_id = Column(Integer, ForeignKey('sentences.id'))
 
     sentence = relationship('Sentence')
-
+    step = relationship("AdventureStep", back_populates="word_order_step")

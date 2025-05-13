@@ -56,6 +56,8 @@ def generate_steps(session_id: str, db: Session = Depends(get_db)):
             db.add(correct_option)
 
             # 3 случайных неправильных варианта
+
+            
             for wrong_word in random.sample([w for w in words if w.id != word.id], 3):
                 db.add(QuizOption(
                     quiz_step_id=quiz.id,
