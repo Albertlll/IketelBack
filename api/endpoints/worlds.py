@@ -105,6 +105,67 @@ async def get_world(world_id: int,
     )
 
 
+
+@router.get("/{world_id}/words", response_model=WorldDetail)
+async def get_world(world_id: int,
+                    db: Session = Depends(get_db),
+                                      ):
+
+    """Получить конкретный мир по ID"""
+    world = db.query(World).filter(  and_(
+        World.id == world_id,
+        World.is_public == True
+    )).first()
+
+    if not world:
+        raise HTTPException(status_code=404, detail="Мир не найден")
+
+    words_list = [
+    {
+        "id": word.id,
+        "word": word.word,
+        "translation": word.translation,
+        "world_id": word.world_id
+    }
+    for word in world.words
+    ]
+
+    sentences_list = [
+        {
+        "id": sentence.id,
+        "sentence": sentence.sentence,
+        "world_id": sentence.world_id
+    }
+    for sentence in world.sentences
+    ]
+
+    print(world.sentences)
+
+    print(world.author_id)
+    # print(current_user.id)
+
+    # is_owner = current_user is not None and world.author_id == current_user.id
+    # print(is_owner)
+
+
+
+    return WorldDetail(
+        id=world.id,
+        title=world.title,
+        description=world.description,
+        words=words_list,
+        image=world.image,
+        sentences=sentences_list,
+        is_public=world.is_public,
+        is_owner=True
+    )
+
+
+
+
+
+
+
 @router.post("/", response_model=str)
 async def create_world(
     world_data: WorldCreate,
