@@ -25,7 +25,6 @@ class User(Base):
 
 class World(Base):
     __tablename__ = 'worlds'
-    __tablename__ = 'worlds'
     id = Column(Integer, Identity(start=1, increment=1), primary_key=True)
     title = Column(String(255), nullable=False)
     description = Column(Text)

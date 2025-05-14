@@ -25,6 +25,7 @@ class WorldDetail(WorldPreview):
     words: List[dict] = []
     sentences :  List[dict] = []
     is_public : bool
+    is_owner : bool
 
 class WordSchema(BaseModel):
     word: str

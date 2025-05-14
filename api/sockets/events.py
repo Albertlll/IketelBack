@@ -192,6 +192,7 @@ async def student_join(sid, data):
 
         if not room_code or len(room_code) != 4:
             raise InvalidCodeError()
+
         session = db.query(AdventureSession).filter_by(join_code=room_code).first()
         if not session:
             raise SessionNotFoundError()
@@ -204,6 +205,7 @@ async def student_join(sid, data):
             }
         })
 
+        leaderboard[room_code] = {}
         leaderboard[room_code][sid] = {
             "username" : data.get("username"),
             "score" : 0

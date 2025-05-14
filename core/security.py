@@ -32,7 +32,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return pwd_context.verify(plain_password, hashed_password)
     except Exception as e:
         logger.error(f"Ошибка при проверке пароля: {e}")
-        # Важно - возвращаем False при ошибке, а не пропускаем
         return False
 
 def get_password_hash(password: str) -> str:
@@ -40,7 +39,6 @@ def get_password_hash(password: str) -> str:
         return pwd_context.hash(password)
     except Exception as e:
         logger.error(f"Ошибка при хешировании пароля: {e}")
-        # Здесь мы генерируем исключение, чтобы не создавать пользователя с пустым паролем
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Ошибка при обработке пароля"
@@ -102,3 +100,22 @@ async def get_current_user_ws(token: str, db: Session) -> User:
     except JWTError as e:
         logger.error(f"WebSocket auth JWT error: {str(e)}")
         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION)
+
+
+async def get_current_user_optional(
+        token: Optional[str] = Depends(oauth2_scheme),
+        db: Session = Depends(get_db)
+) -> Optional[User]:
+    if not token:
+        return None
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")  # Используем email, как в get_current_user
+        if email is None:
+            return None
+
+        user = db.query(User).filter(User.email == email).first()
+        return user
+    except JWTError:
+        return None
