@@ -11,6 +11,7 @@ import api.sockets.events
 
 
 from core.consts import ORIGINS
+from core.errors import register_exception_handlers
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
@@ -27,11 +28,15 @@ fastapi_app = FastAPI(
     description="API для обучающего приложения по языкам"
 )
 
+# Регистрируем обработчики ошибок
+register_exception_handlers(fastapi_app)
+
 
 fastapi_app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Указываем конкретные домены
+    allow_origins=ORIGINS,  # Указываем конкретные домены
     allow_credentials=True,
+    # allow_origin_regex=r"https?://192\.168\.(\d+)\.(\d+)(:\d+)?",  # Поддержка локальной сети
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["Content-Type", "X-CSRFToken", "Authorization"],
@@ -40,13 +45,17 @@ fastapi_app.add_middleware(
 
 @fastapi_app.get("/")
 async def root():
-    return JSONResponse({"status": "ok", "message": "Server is running"})
+    return JSONResponse({"success": True, "message": "Server is running"})
 
 # Middleware для логирования запросов
 @fastapi_app.middleware("http")
 async def log_requests(request, call_next):
     logger.debug(f"Входящий запрос: {request.method} {request.url}")
-    logger.debug(f"Заголовки: {request.headers}")
+    # Маскируем Authorization
+    headers = dict(request.headers)
+    if 'authorization' in headers:
+        headers['authorization'] = '***'
+    logger.debug(f"Заголовки: {headers}")
     response = await call_next(request)
     return response
 
@@ -75,7 +84,4 @@ if __name__ == "__main__":
         host="0.0.0.0", 
         port=8000,
         log_level="info"
-        # Для поддержки HTTPS раскомментируйте следующие строки и укажите пути к сертификатам
-        # ssl_keyfile="./ssl/key.pem",
-        # ssl_certfile="./ssl/cert.pem",
     )

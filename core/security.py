@@ -15,14 +15,14 @@ from db.models import User
 # Настройка логирования
 logger = logging.getLogger(__name__)
 
-# Добавляем модель TokenData
 class TokenData(BaseModel):
     email: Optional[str] = None
 
-# Настройки JWT из конфигурации
+# Настройки JWT
 SECRET_KEY = settings.secret_key
 ALGORITHM = settings.algorithm
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
+REFRESH_TOKEN_EXPIRE_DAYS = 14
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
@@ -44,15 +44,19 @@ def get_password_hash(password: str) -> str:
             detail="Ошибка при обработке пароля"
         )
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+def _create_token(data: dict, expires_delta: timedelta) -> str:
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(days=3)
+    expire = datetime.utcnow() + expires_delta
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    """Создает access-токен (короткоживущий)."""
+    return _create_token(data, expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+
+def create_refresh_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    """Создает refresh-токен (длинноживущий)."""
+    return _create_token({**data, "type": "refresh"}, expires_delta or timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db = Depends(get_db)):
     credentials_exception = HTTPException(
@@ -62,6 +66,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db = Depends(get
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") == "refresh":
+            # Запрещаем использовать refresh токен как access
+            raise credentials_exception
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
@@ -75,7 +82,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db = Depends(get
     return user
 
 
-
 async def get_current_user_ws(token: str, db: Session) -> User:
     """Упрощенная проверка токена для WebSocket"""
     if not token:
@@ -84,6 +90,8 @@ async def get_current_user_ws(token: str, db: Session) -> User:
 
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") == "refresh":
+            raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION)
         email = payload.get("sub")
         if not email:
             logger.error("WebSocket auth: Invalid token payload (no email)")
@@ -111,7 +119,9 @@ async def get_current_user_optional(
 
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")  # Используем email, как в get_current_user
+        if payload.get("type") == "refresh":
+            return None
+        email: str = payload.get("sub")
         if email is None:
             return None
 

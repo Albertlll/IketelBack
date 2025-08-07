@@ -19,6 +19,7 @@ logger.addHandler(handler)
 host_sessions = {}
 leaderboard = {}
 
+
 def calculate_score(is_correct: bool, time_spent: float, base_points=100) -> int:
     if not is_correct:
         return 0
@@ -50,11 +51,7 @@ class HostPermissionError(ConnectError):
 
 class IntegrityError(ConnectError):
     def __init__(self):
-        super().__init__("Только хост может выполнить это действие")
-
-
-
-
+        super().__init__("Не удалось создать сессию. Попробуйте снова")
 
 
 @sio.event
@@ -73,10 +70,10 @@ async def connect(sid, environ, auth_data=None):
             "email": user.email,
             "role": "host",
             "is_authenticated": True,
-            "isStarted" : False
+            "isStarted": False
         })
 
-    except Exception as e:
+    except Exception:
         raise ConnectionRefusedError("Invalid token")
 
     finally:
@@ -89,20 +86,17 @@ async def disconnect(sid):
         session_data = await sio.get_session(sid)
         logger.debug(f"Client disconnected: {session_data}")
 
-        if session_data.get("role") == "host":
-            room = session_data.get("room_code")
+        role = session_data.get("role")
+        room = session_data.get("room_code")
 
-            if room:
-                await sio.emit("host_disconnected",
-                               {"message": "Хост покинул игру"},
-                               room=room
-                               )
+        if role == "host" and room:
+            await sio.emit("host_disconnected", {"message": "Хост покинул игру"}, room=room)
 
             db = next(get_db())
             try:
                 session = db.query(AdventureSession).filter_by(
                     join_code=room,
-                    host_id=session_data["user_id"]
+                    host_id=session_data.get("user_id")
                 ).first()
 
                 if session:
@@ -116,17 +110,9 @@ async def disconnect(sid):
             finally:
                 db.close()
 
-        elif session_data.get("role") == "student":
-            room = session_data.get("room_code")
-
+        elif role == "student" and room:
             logger.info(f"Выход из комнаты {room}")
-
-            if room:
-                await sio.emit("student_left",
-                               {"sid": sid},
-
-                               room=room
-                               )
+            await sio.emit("student_left", {"sid": sid}, room=room)
 
         await sio.leave_room(sid, "*")
 
@@ -144,22 +130,22 @@ async def host_join(sid, data):
         if session_data.get("role") != "host":
             raise HostPermissionError()
 
-        logger.info(f" Мир с айдишником {data['world_id']}")
+        world_id = data.get("world_id")
+        if not isinstance(world_id, int):
+            await sio.emit("error", {"message": "Некорректный world_id"}, to=sid)
+            return
 
         session = AdventureSession.create(
             db,
             host_id=session_data["user_id"],
-            world_id=data["world_id"],
+            world_id=world_id,
         )
 
         host_sessions[session.join_code] = sid
         session_data["room_code"] = session.join_code
 
         steps = generate_steps(session.join_code, db)
-
         await sio.enter_room(sid, session.join_code)
-
-
 
         await sio.emit("host_ready", {
             "join_code": session.join_code,
@@ -168,17 +154,13 @@ async def host_join(sid, data):
 
     except IntegrityError as e:
         logger.error(f"Session creation conflict: {e}")
-        await sio.emit("error", {
-            "message": "Не удалось создать сессию (попробуйте снова)"
-        }, to=sid)
+        await sio.emit("error", {"message": e.message}, to=sid)
         db.rollback()
     except HostPermissionError as e:
         await sio.emit("auth_error", {"message": e.message}, to=sid)
     except Exception as e:
         logger.error(f"Unexpected error in host_join: {e}", exc_info=True)
-        await sio.emit("error", {
-            "message": "Ошибка при создании игры"
-        }, to=sid)
+        await sio.emit("error", {"message": "Ошибка при создании игры"}, to=sid)
         db.rollback()
     finally:
         db.close()
@@ -188,9 +170,9 @@ async def host_join(sid, data):
 async def student_join(sid, data):
     db = next(get_db())
     try:
-        room_code = data.get('room_code')
+        room_code = (data or {}).get('room_code')
 
-        if not room_code or len(room_code) != 4:
+        if not room_code or not isinstance(room_code, str) or len(room_code) != 4:
             raise InvalidCodeError()
 
         session = db.query(AdventureSession).filter_by(join_code=room_code).first()
@@ -200,27 +182,25 @@ async def student_join(sid, data):
         await sio.save_session(sid, {
             "role": "student",
             "room_code": room_code,
-            "progress": {
-                "current_step": 0,
-            }
+            "progress": {"current_step": 0}
         })
 
-        leaderboard[room_code] = {}
+        if room_code not in leaderboard:
+            leaderboard[room_code] = {}
         leaderboard[room_code][sid] = {
-            "username" : data.get("username"),
-            "score" : 0
+            "username": (data or {}).get("username"),
+            "score": 0
         }
-
 
         await sio.enter_room(sid, room_code)
         await sio.emit('student_joined', {'message': 'Success'}, to=sid)
-        await sio.emit('new_student_joined', {'sid': sid, 'username' : data.get('username')}, room=room_code)
+        await sio.emit('new_student_joined', {'sid': sid, 'username': (data or {}).get('username')}, room=room_code)
 
     except ConnectError as e:
         await sio.emit('join_error', {'error': str(e)}, to=sid)
     except Exception as e:
         logger.error(f"Неожиданная ошибка : {e}")
-        await sio.emit("error", {"message" : "Внутренняя ошибка сервера"})
+        await sio.emit("error", {"message": "Внутренняя ошибка сервера"})
     finally:
         db.close()
 
@@ -234,14 +214,15 @@ async def game_start(sid, data):
             await sio.emit("error", {"message": "Только хост может стартовать игру"}, to=sid)
             return
 
-        room = session_data["room_code"]
+        room = session_data.get("room_code")
+        if not room:
+            await sio.emit("error", {"message": "Комната не найдена"}, to=sid)
+            return
 
-        # Получаем все шаги игры из БД
         steps = db.query(AdventureStep).filter_by(
             session_id=room
         ).order_by(AdventureStep.step_number).all()
 
-        # Форматируем задания для клиента
         tasks = []
         for step in steps:
             if step.quiz_step:
@@ -253,22 +234,23 @@ async def game_start(sid, data):
                     "options": [{"id": opt.id, "text": opt.text} for opt in step.quiz_step.options]
                 })
             elif step.word_order_step:
+                sentence_text = (step.word_order_step.sentence.sentence or "").lower()
                 tasks.append({
                     "type": "word_order",
                     "step_id": step.id,
                     "step_number": step.step_number,
-                    "sentence": step.word_order_step.sentence.sentence.lower(),
-                    "words" : step.word_order_step.sentence.sentence.lower().split()
+                    "sentence": sentence_text,
+                    "words": sentence_text.split()
                 })
 
+        if room not in leaderboard:
+            leaderboard[room] = {}
         leaderboard_list = [
-            {"sid": sid, "username": data["username"], "score": data["score"]}
-            for sid, data in leaderboard[room].items()
+            {"sid": s, "username": d.get("username"), "score": d.get("score", 0)}
+            for s, d in leaderboard[room].items()
         ]
 
-        await sio.emit("game_started",
-            tasks, room=room)
-
+        await sio.emit("game_started", tasks, room=room)
         await sio.emit("leaderboard", leaderboard_list, to=sid)
 
         session_data["isStarted"] = True
@@ -284,51 +266,66 @@ async def game_start(sid, data):
 @sio.on('check_answer')
 async def check_answer(sid, data):
     db = next(get_db())
-    print(data)
-    session_data = await sio.get_session(sid)
-    room_code = session_data["room_code"]
+    try:
+        session_data = await sio.get_session(sid)
+        room_code = session_data.get("room_code")
+        if not room_code:
+            await sio.emit("error", {"message": "Комната не найдена"}, to=sid)
+            return
 
-    print([i.step_number for i in db.query(AdventureStep).filter_by(session_id=room_code)])
+        step_index = (data or {}).get("step")
+        if not isinstance(step_index, int):
+            await sio.emit("error", {"message": "Некорректный шаг"}, to=sid)
+            return
 
+        step = db.query(AdventureStep).filter_by(
+            session_id=room_code,
+            step_number=step_index + 1
+        ).first()
 
-    step = db.query(AdventureStep).filter_by(
-        session_id=room_code,
-        step_number=data["step"] + 1
-    ).first()
+        if not step:
+            await sio.emit("error", {"message": "Шаг не найден"}, to=sid)
+            return
 
-    if not step:
-        raise ValueError("Шаг не найден")
-
-    if step.quiz_step:
-        correct_option = db.query(QuizOption).filter_by(
+        is_correct = False
+        if step.quiz_step:
+            answer = (data or {}).get('answer')
+            if not isinstance(answer, int):
+                await sio.emit("error", {"message": "Некорректный ответ"}, to=sid)
+                return
+            correct_option = db.query(QuizOption).filter_by(
                 quiz_step_id=step.quiz_step.id,
                 is_correct=True
             ).first()
-        is_correct = (data['answer'] == correct_option.id)
+            is_correct = (answer == (correct_option.id if correct_option else None))
+        else:
+            expected = (step.word_order_step.sentence.sentence or "").lower().split()
+            answer = (data or {}).get("answer")
+            if not isinstance(answer, list):
+                await sio.emit("error", {"message": "Некорректный ответ"}, to=sid)
+                return
+            is_correct = (answer == expected)
 
-    else:
-        is_correct = (data["answer"] == step.word_order_step.sentence.sentence.lower().split())
+        time_spent = float((data or {}).get("time_spent", 0.0))
+        score = calculate_score(is_correct, time_spent)
 
+        if room_code not in leaderboard:
+            leaderboard[room_code] = {}
+        if sid not in leaderboard[room_code]:
+            leaderboard[room_code][sid] = {"username": None, "score": 0}
+        leaderboard[room_code][sid]["score"] += score
 
-    print(is_correct)
+        host_sid = host_sessions.get(room_code)
+        if host_sid:
+            leaderboard_list = [
+                {"sid": s, "username": d.get("username"), "score": d.get("score", 0)}
+                for s, d in leaderboard[room_code].items()
+            ]
+            await sio.emit("leaderboard", leaderboard_list, to=host_sid)
 
-
-
-    score = calculate_score(is_correct, data["time_spent"])
-
-    print(score)
-
-    leaderboard[room_code][sid]["score"] += score
-
-    host_sid = host_sessions.get(room_code)
-    if host_sid:
-        leaderboard_list = [
-            {"sid": sid, "username": data["username"], "score": data["score"]}
-            for sid, data in leaderboard[room_code].items()
-        ]
-        await sio.emit("leaderboard", leaderboard_list, to=host_sessions[room_code])
-
-
-
-    db.close()
+    except Exception as e:
+        logger.error(f"check_answer error: {e}", exc_info=True)
+        await sio.emit("error", {"message": "Ошибка при проверке ответа"}, to=sid)
+    finally:
+        db.close()
 

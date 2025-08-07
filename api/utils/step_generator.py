@@ -10,7 +10,7 @@ def generate_steps(session_id: str, db: Session = Depends(get_db)):
     Генерирует шаги приключения для указанной сессии.
     """
     # Получаем сессию и связанный мир
-    session = db.query(AdventureSession).get(session_id)
+    session = db.get(AdventureSession, session_id)
     if not session:
         raise ValueError("Сессия не найдена")
 
@@ -56,9 +56,8 @@ def generate_steps(session_id: str, db: Session = Depends(get_db)):
             db.add(correct_option)
 
             # 3 случайных неправильных варианта
-
-            
-            for wrong_word in random.sample([w for w in words if w.id != word.id], 3):
+            candidates = [w for w in words if w.id != word.id]
+            for wrong_word in random.sample(candidates, k=min(3, len(candidates))):
                 db.add(QuizOption(
                     quiz_step_id=quiz.id,
                     text=wrong_word.translation,
@@ -69,7 +68,6 @@ def generate_steps(session_id: str, db: Session = Depends(get_db)):
 
         elif step_type == "word_order":
             # Создаём шаг сбора предложения
-
             sentence = random.choice(sentences)
 
             # Основной шаг

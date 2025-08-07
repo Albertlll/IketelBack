@@ -1,5 +1,6 @@
 import logging
 import socketio
+from core.consts import ORIGINS
 
 # Настройка логгера с максимальной детализацией
 logging.basicConfig(level=logging.DEBUG)
@@ -7,10 +8,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 def check_origin(origin):
-    allowed = [
+    allowed = ORIGINS + [
         "exp://",
-        "http://localhost",
-        "https://iketel.ru"
     ]
     return origin in allowed
 
@@ -18,7 +17,7 @@ def check_origin(origin):
 # Создаем Socket.IO сервер с явными параметрами
 sio = socketio.AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins="*",
+    cors_allowed_origins=ORIGINS,
     logger=True,
     engineio_logger=True,
     ping_timeout=60,
