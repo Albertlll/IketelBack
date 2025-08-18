@@ -34,6 +34,10 @@ jobs:
         run: |
           docker push cr.yandex/crph8la4elkq8clar20b/iketel-backend:latest
 
+      - name: Create SSH key file
+        run: |
+          echo "${{ secrets.SERVER_SSH_KEY }}" > server_key.pem
+          chmod 600 server_key.pem
 
       - name: SSH into server and deploy
         run: |
@@ -42,3 +46,5 @@ jobs:
             docker-compose down && \
             docker-compose up -d && \
             docker system prune -f"
+
+
