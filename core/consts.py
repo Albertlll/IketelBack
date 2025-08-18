@@ -1,6 +1,7 @@
 ORIGINS = [
     "http://localhost",
     "http://localhost:3000",
+    "http://localhost:3100",
     "https://localhost",
     "https://localhost:3000",
     "https://localhost:8000",
@@ -12,6 +13,7 @@ ORIGINS = [
     "https://127.0.0.1:8000",
     "http://127.0.0.1:8000",
     "https://iketel.ru",
+    "https://game.iketel.ru",
     "https://www.iketel.ru",
     "http://iketel.ru",
     "http://www.iketel.ru",
