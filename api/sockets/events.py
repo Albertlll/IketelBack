@@ -18,6 +18,8 @@ logger.addHandler(handler)
 
 host_sessions = {}
 leaderboard = {}
+steps_count_by_room = {}
+started_rooms = set()
 
 
 def calculate_score(is_correct: bool, time_spent: float, base_points=100) -> int:
@@ -28,6 +30,49 @@ def calculate_score(is_correct: bool, time_spent: float, base_points=100) -> int
     time_factor = min(max_time, time_spent) / max_time
     return int(base_points * (1 - time_factor))  # От 100 до 0
 
+
+def _get_steps_count(room_code: str, db: Session) -> int:
+    cached = steps_count_by_room.get(room_code)
+    if cached:
+        return cached
+    count = db.query(AdventureStep).filter_by(session_id=room_code).count()
+    steps_count_by_room[room_code] = count
+    return count
+
+
+def _sorted_leaderboard(room_code: str):
+    entries = leaderboard.get(room_code, {})
+    data = [
+        {"sid": s, "username": d.get("username"), "score": d.get("score", 0)}
+        for s, d in entries.items()
+    ]
+    return sorted(data, key=lambda x: x["score"], reverse=True)
+
+
+def _top3(room_code: str):
+    data = _sorted_leaderboard(room_code)
+    return [
+        {"place": idx + 1, "username": item.get("username"), "score": item.get("score", 0)}
+        for idx, item in enumerate(data[:3])
+    ]
+
+
+async def _maybe_finish_game(room_code: str):
+    entries = leaderboard.get(room_code, {})
+    if not entries:
+        return
+    if not all(d.get("finished") for d in entries.values()):
+        return
+
+    host_sid = host_sessions.get(room_code)
+    if host_sid:
+        await sio.emit(
+            "game_finished",
+            {"top3": _top3(room_code), "total_players": len(entries)},
+            to=host_sid,
+        )
+    leaderboard.pop(room_code, None)
+    steps_count_by_room.pop(room_code, None)
 
 
 
@@ -52,6 +97,10 @@ class HostPermissionError(ConnectError):
 class IntegrityError(ConnectError):
     def __init__(self):
         super().__init__("Не удалось создать сессию. Попробуйте снова")
+
+class GameAlreadyStartedError(ConnectError):
+    def __init__(self):
+        super().__init__("Игра уже началась")
 
 
 @sio.event
@@ -103,6 +152,9 @@ async def disconnect(sid):
                     db.delete(session)
                     db.commit()
                     logger.info(f"Session {room} deleted")
+                leaderboard.pop(room, None)
+                steps_count_by_room.pop(room, None)
+                started_rooms.discard(room)
 
             except Exception as e:
                 logger.error(f"DB cleanup error: {str(e)}")
@@ -113,6 +165,9 @@ async def disconnect(sid):
         elif role == "student" and room:
             logger.info(f"Выход из комнаты {room}")
             await sio.emit("student_left", {"sid": sid}, room=room)
+            if room in leaderboard:
+                leaderboard[room].pop(sid, None)
+                await _maybe_finish_game(room)
 
         await sio.leave_room(sid, "*")
 
@@ -145,6 +200,7 @@ async def host_join(sid, data):
         session_data["room_code"] = session.join_code
 
         steps = generate_steps(session.join_code, db)
+        steps_count_by_room[session.join_code] = len(steps)
         await sio.enter_room(sid, session.join_code)
 
         await sio.emit("host_ready", {
@@ -179,6 +235,9 @@ async def student_join(sid, data):
         if not session:
             raise SessionNotFoundError()
 
+        if room_code in started_rooms:
+            raise GameAlreadyStartedError()
+
         await sio.save_session(sid, {
             "role": "student",
             "room_code": room_code,
@@ -189,7 +248,8 @@ async def student_join(sid, data):
             leaderboard[room_code] = {}
         leaderboard[room_code][sid] = {
             "username": (data or {}).get("username"),
-            "score": 0
+            "score": 0,
+            "finished": False,
         }
 
         await sio.enter_room(sid, room_code)
@@ -253,6 +313,8 @@ async def game_start(sid, data):
         await sio.emit("game_started", tasks, room=room)
         await sio.emit("leaderboard", leaderboard_list, to=sid)
 
+        started_rooms.add(room)
+
         session_data["isStarted"] = True
         await sio.save_session(sid, session_data)
 
@@ -312,7 +374,7 @@ async def check_answer(sid, data):
         if room_code not in leaderboard:
             leaderboard[room_code] = {}
         if sid not in leaderboard[room_code]:
-            leaderboard[room_code][sid] = {"username": None, "score": 0}
+            leaderboard[room_code][sid] = {"username": None, "score": 0, "finished": False}
         leaderboard[room_code][sid]["score"] += score
 
         host_sid = host_sessions.get(room_code)
@@ -323,9 +385,27 @@ async def check_answer(sid, data):
             ]
             await sio.emit("leaderboard", leaderboard_list, to=host_sid)
 
+        steps_count = _get_steps_count(room_code, db)
+        if step_index + 1 >= steps_count:
+            leaderboard[room_code][sid]["finished"] = True
+            sorted_board = _sorted_leaderboard(room_code)
+            place = next(
+                (idx + 1 for idx, item in enumerate(sorted_board) if item.get("sid") == sid),
+                len(sorted_board),
+            )
+            await sio.emit(
+                "game_finished",
+                {
+                    "score": leaderboard[room_code][sid]["score"],
+                    "place": place,
+                    "total_players": len(sorted_board),
+                },
+                to=sid,
+            )
+            await _maybe_finish_game(room_code)
+
     except Exception as e:
         logger.error(f"check_answer error: {e}", exc_info=True)
         await sio.emit("error", {"message": "Ошибка при проверке ответа"}, to=sid)
     finally:
         db.close()
-
