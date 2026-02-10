@@ -17,6 +17,7 @@ simple-websocket==1.1.0
 wsproto==1.2.0
 python-multipart==0.0.20  # для обработки файлов и multipart-запросов
 Pillow==10.4.0
+redis==5.0.4
 
 
 

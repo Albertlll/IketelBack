@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     secret_key: str
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 1000
+
+    redis_url: str = "redis://redis:6379/0"
+    redis_room_ttl_seconds: int = 21600
     
     # S3 настройки
     s3_endpoint: str
