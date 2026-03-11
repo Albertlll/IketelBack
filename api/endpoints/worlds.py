@@ -6,13 +6,26 @@ from db.models import World, Word, Sentence, User
 from core.security import get_current_user, get_current_user_optional
 from typing import List, Optional
 from core.file_storage import upload_base64
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import and_
+
+from api.services.study_game_generator import (
+    StudyGenerationError,
+    generate_study_game,
+)
 
 router = APIRouter()
 
+
 class PostAnsw(BaseModel):
-    stri : str
+    stri: str
+
+
+class StudyGenerateRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=3000)
+    blocks_count: int = Field(default=4, ge=1, le=12)
+    quiz_count: int = Field(default=8, ge=1, le=50)
+
 
 @router.get("/", response_model=List[WorldPreview])
 async def get_all_worlds(db: Session = Depends(get_db)):
@@ -23,7 +36,7 @@ async def get_all_worlds(db: Session = Depends(get_db)):
             id=world.id,
             title=world.title,
             image=world.image
-        ) 
+        )
         for world in public_worlds
     ]
 
@@ -130,6 +143,42 @@ async def create_world(
     db.commit()
 
     return "Мир успешно создан!"
+
+
+@router.post("/{world_id}/study/generate")
+async def generate_study(
+    world_id: int,
+    request_data: StudyGenerateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    world = db.query(World).filter(World.id == world_id).first()
+
+    if not world:
+        raise HTTPException(status_code=404, detail="Мир не найден")
+
+    if world.author_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Недостаточно прав для генерации")
+
+    if not request_data.prompt.strip():
+        raise HTTPException(status_code=400, detail="prompt не должен быть пустым")
+
+    try:
+        game = generate_study_game(
+            world=world,
+            prompt=request_data.prompt.strip(),
+            blocks_count=request_data.blocks_count,
+            quiz_count=request_data.quiz_count,
+        )
+
+        return {
+            "success": True,
+            "data": {
+                "game": game,
+            },
+        }
+    except StudyGenerationError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
 @router.delete("/{world_id}", status_code=status.HTTP_204_NO_CONTENT)

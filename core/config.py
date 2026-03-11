@@ -3,9 +3,10 @@ from pydantic_settings import BaseSettings
 from pydantic import Field
 from dotenv import load_dotenv
 
-# Эта строка загружает все переменные из файла .env 
+# Эта строка загружает все переменные из файла .env
 # и добавляет их в переменные окружения (os.environ)
 load_dotenv()
+
 
 class Settings(BaseSettings):
     database_url: str
@@ -15,14 +16,21 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://redis:6379/0"
     redis_room_ttl_seconds: int = 21600
-    
+
     # S3 настройки
     s3_endpoint: str
     s3_bucket: str
     s3_access_key: str
     s3_secret_key: str
 
+    # GigaChat
+    gigachat_api_key: str | None = None
+    gigachat_model: str = "GigaChat-2"
+    gigachat_timeout_sec: int = 60
+    gigachat_verify_ssl_certs: bool = False
+
     class Config:
         env_file = os.getenv("ENV_FILE", ".env")
+
 
 settings = Settings()

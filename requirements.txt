@@ -18,17 +18,11 @@ wsproto==1.2.0
 python-multipart==0.0.20  # для обработки файлов и multipart-запросов
 Pillow==10.4.0
 redis==5.0.4
-
-
-
-
-
-
+gigachat
 
 # Аутентификация и безопасность
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==3.2.2  # Понижена версия для совместимости с passlib
-
 
 starlette~=0.46.1

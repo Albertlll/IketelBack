@@ -18,6 +18,11 @@ S3_ENDPOINT=https://storage.yandexcloud.net
 S3_BUCKET=your-bucket
 S3_ACCESS_KEY=...
 S3_SECRET_KEY=...
+
+GIGACHAT_API_KEY=...
+GIGACHAT_MODEL=GigaChat-2
+GIGACHAT_TIMEOUT_SEC=60
+GIGACHAT_VERIFY_SSL_CERTS=False
 ```
 
 ## Запуск
@@ -67,6 +72,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 - `PUT /worlds/{id}` — обновить мир (требуется авторизация)
 - `DELETE /worlds/{id}` — удалить мир (требуется авторизация)
 - `PATCH /worlds/{id}/visibility` — изменить публичность (требуется авторизация)
+- `POST /worlds/{id}/study/generate` — REST-генерация text-game «Изучение» через GigaChat
 - `POST /adventures` — создать игровую сессию
 - Сокеты — путь `/sio`
 
